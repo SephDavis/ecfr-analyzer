@@ -8,7 +8,7 @@ const tokenizer = new natural.WordTokenizer();
  */
 class ECFRService {
   constructor() {
-    this.baseUrl = 'https://www.ecfr.gov/api';
+    this.baseUrl = 'https://www.ecfr.gov';
   }
 
   /**
@@ -16,8 +16,8 @@ class ECFRService {
    */
   async getAgencies() {
     try {
-      const response = await axios.get(`${this.baseUrl}/agencies`);
-      return response.data;
+      const response = await axios.get(`${this.baseUrl}/api/admin/v1/agencies.json`);
+      return response.data.agencies;
     } catch (error) {
       console.error('Error fetching agencies:', error);
       throw error;
@@ -25,32 +25,141 @@ class ECFRService {
   }
 
   /**
-   * Fetch regulations for a specific agency
-   * @param {string} agencyId - The ID of the agency
+   * Get all CFR titles
    */
-  async getAgencyRegulations(agencyId) {
+  async getTitles() {
     try {
-      const response = await axios.get(`${this.baseUrl}/current/${agencyId}`);
+      const response = await axios.get(`${this.baseUrl}/api/versioner/v1/titles.json`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching regulations for agency ${agencyId}:`, error);
+      console.error('Error fetching titles:', error);
       throw error;
     }
   }
 
   /**
-   * Get historical versions of a regulation
-   * @param {string} titleNum - Title number
-   * @param {string} partNum - Part number
+   * Get structure of a specific title
+   * @param {string} title - Title number
+   * @param {string} date - Date in YYYY-MM-DD format (optional, defaults to current date)
    */
-  async getHistoricalVersions(titleNum, partNum) {
+  async getTitleStructure(title, date = this.getCurrentDate()) {
     try {
-      const response = await axios.get(`${this.baseUrl}/historical/title-${titleNum}/part-${partNum}`);
+      const response = await axios.get(`${this.baseUrl}/api/versioner/v1/structure/${date}/title-${title}.json`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching historical versions for title ${titleNum}, part ${partNum}:`, error);
+      console.error(`Error fetching structure for title ${title}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Get full XML content of a title
+   * @param {string} title - Title number
+   * @param {string} date - Date in YYYY-MM-DD format (optional)
+   */
+  async getTitleContent(title, date = this.getCurrentDate()) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/versioner/v1/full/${date}/title-${title}.xml`, {
+        responseType: 'text'
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching content for title ${title}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all corrections for a specific title
+   * @param {string} title - Title number
+   */
+  async getTitleCorrections(title) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/admin/v1/corrections/title/${title}.json`);
+      return response.data.ecfr_corrections;
+    } catch (error) {
+      console.error(`Error fetching corrections for title ${title}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all corrections with optional filters
+   * @param {Object} filters - Optional filters (date, title, error_corrected_date)
+   */
+  async getCorrections(filters = {}) {
+    try {
+      const queryParams = new URLSearchParams();
+      
+      if (filters.date) queryParams.append('date', filters.date);
+      if (filters.title) queryParams.append('title', filters.title);
+      if (filters.error_corrected_date) queryParams.append('error_corrected_date', filters.error_corrected_date);
+      
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const response = await axios.get(`${this.baseUrl}/api/admin/v1/corrections.json${queryString}`);
+      
+      return response.data.ecfr_corrections;
+    } catch (error) {
+      console.error('Error fetching corrections:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Search for regulations containing specific terms
+   * @param {string} query - Search query
+   */
+  async searchRegulations(query) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/search/v1/results?q=${encodeURIComponent(query)}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error searching regulations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get search result count
+   * @param {string} query - Search query
+   */
+  async getSearchCount(query) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/search/v1/count?q=${encodeURIComponent(query)}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching search count:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get versions of a specific title to track historical changes
+   * @param {string} title - Title number
+   */
+  async getTitleVersions(title) {
+    try {
+      const response = await axios.get(`${this.baseUrl}/api/versioner/v1/versions/title-${title}.json`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching versions for title ${title}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate word count from XML content
+   * @param {string} xmlContent - XML content from eCFR API
+   */
+  calculateWordCount(xmlContent) {
+    if (!xmlContent) return 0;
+    
+    // Remove XML tags to get plain text
+    const plainText = xmlContent.replace(/<[^>]+>/g, ' ');
+    
+    // Count words
+    const words = tokenizer.tokenize(plainText);
+    return words.length;
   }
 
   /**
@@ -87,62 +196,29 @@ class ECFRService {
   }
 
   /**
-   * Calculate complexity score for regulations
-   * Higher score indicates more complex language
-   * @param {object} regulation - Regulation object
+   * Get the current date in YYYY-MM-DD format
    */
-  calculateComplexityScore(regulation) {
-    if (!regulation || !regulation.content) return 0;
-    
-    const { wordCount, sentenceCount, complexity } = this.analyzeText(regulation.content);
-    
-    // Factors that influence complexity:
-    // 1. Average sentence length
-    // 2. Presence of legal jargon (could be expanded)
-    // 3. Document length
-    
-    // Simple scoring algorithm
-    let score = complexity;
-    
-    // Longer documents tend to be more complex
-    if (wordCount > 1000) score += 1;
-    if (wordCount > 5000) score += 2;
-    
-    return Math.round(score * 10) / 10;
+  getCurrentDate() {
+    const date = new Date();
+    return date.toISOString().split('T')[0];
   }
 
   /**
-   * Search for regulations containing specific terms
-   * @param {string} query - Search query
+   * Compare versions to identify changes
+   * @param {string} oldXml - XML content of older version
+   * @param {string} newXml - XML content of newer version
    */
-  async searchRegulations(query) {
-    try {
-      const response = await axios.get(`${this.baseUrl}/search?query=${encodeURIComponent(query)}`);
-      return response.data;
-    } catch (error) {
-      console.error('Error searching regulations:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Compare two versions of a regulation to identify changes
-   * @param {object} oldVersion - Previous version
-   * @param {object} newVersion - Current version
-   */
-  compareVersions(oldVersion, newVersion) {
-    if (!oldVersion || !newVersion) return { added: 0, removed: 0, changes: [] };
-    
-    const oldWords = tokenizer.tokenize(oldVersion.content || '');
-    const newWords = tokenizer.tokenize(newVersion.content || '');
+  compareVersions(oldXml, newXml) {
+    const oldWordCount = this.calculateWordCount(oldXml);
+    const newWordCount = this.calculateWordCount(newXml);
     
     return {
-      added: Math.max(0, newWords.length - oldWords.length),
-      removed: Math.max(0, oldWords.length - newWords.length),
-      netChange: newWords.length - oldWords.length,
-      oldWordCount: oldWords.length,
-      newWordCount: newWords.length,
-      percentChange: oldWords.length ? ((newWords.length - oldWords.length) / oldWords.length) * 100 : 0
+      added: Math.max(0, newWordCount - oldWordCount),
+      removed: Math.max(0, oldWordCount - newWordCount),
+      netChange: newWordCount - oldWordCount,
+      oldWordCount,
+      newWordCount,
+      percentChange: oldWordCount ? ((newWordCount - oldWordCount) / oldWordCount) * 100 : 0
     };
   }
 }

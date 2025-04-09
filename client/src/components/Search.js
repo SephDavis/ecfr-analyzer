@@ -28,7 +28,13 @@ const Search = () => {
       setSearchPerformed(true);
       
       const response = await axios.get(`${API_BASE_URL}/search?query=${encodeURIComponent(query)}`);
-      setResults(response.data.results || []);
+      
+      // Format the search results based on the actual eCFR API response structure
+      if (response.data && response.data.results) {
+        setResults(response.data.results);
+      } else {
+        setResults([]);
+      }
       
       setLoading(false);
     } catch (error) {
@@ -85,6 +91,13 @@ const Search = () => {
     if (snippetEnd < text.length) textSnippet += '...';
     
     return highlightText(textSnippet, searchTerm);
+  };
+  
+  // Extract title from CFR citation (e.g., "42 CFR 405.1" -> "42")
+  const extractTitle = (citation) => {
+    if (!citation) return '';
+    const match = citation.match(/^(\d+)\s+CFR/);
+    return match ? match[1] : '';
   };
   
   return (
@@ -147,33 +160,37 @@ const Search = () => {
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                       <Box sx={{ width: '100%' }}>
                         <Typography variant="subtitle1" fontWeight="bold">
-                          {result.title || 'Untitled Regulation'}
+                          {result.title || result.citation || 'Untitled Regulation'}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {result.agency} • {result.section || 'No Section'} • {new Date(result.date).toLocaleDateString()}
+                          {result.citation || ''} • {result.version_date ? new Date(result.version_date).toLocaleDateString() : 'Current Version'}
                         </Typography>
                         <Box sx={{ mt: 1 }}>
-                          {result.topics && result.topics.map((topic, i) => (
+                          <Chip 
+                            label={`Title ${extractTitle(result.citation)}`} 
+                            size="small" 
+                            sx={{ mr: 0.5, mb: 0.5 }} 
+                          />
+                          {result.agency && (
                             <Chip 
-                              key={i} 
-                              label={topic} 
+                              label={result.agency} 
                               size="small" 
                               sx={{ mr: 0.5, mb: 0.5 }} 
                             />
-                          ))}
+                          )}
                         </Box>
                       </Box>
                     </AccordionSummary>
                     <AccordionDetails>
                       <Box>
                         <Typography variant="body2" paragraph>
-                          {getTruncatedTextWithHighlight(result.content, query)}
+                          {getTruncatedTextWithHighlight(result.content || result.snippet || '', query)}
                         </Typography>
                         <Button 
                           variant="outlined" 
                           size="small"
                           component="a"
-                          href={result.url || '#'}
+                          href={result.url || `https://www.ecfr.gov/current/${result.citation ? result.citation.replace(/\s+/g, '-').toLowerCase() : ''}`}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
