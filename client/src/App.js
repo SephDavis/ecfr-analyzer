@@ -12,7 +12,7 @@ import HistoricalAnalysis from './components/HistoricalAnalysis';
 import Search from './components/Search';
 import './App.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = '/data';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -25,11 +25,11 @@ function App() {
         setLoading(true);
         
         // Fetch agencies data
-        const agenciesResponse = await axios.get(`${API_BASE_URL}/agencies`);
+        const agenciesResponse = await axios.get(`${API_BASE_URL}/agencies.json`);
         setAgenciesData(agenciesResponse.data);
         
         // Fetch historical data
-        const historicalResponse = await axios.get(`${API_BASE_URL}/historical`);
+        const historicalResponse = await axios.get(`${API_BASE_URL}/historical.json`);
         setHistoricalData(historicalResponse.data);
         
         setLoading(false);
