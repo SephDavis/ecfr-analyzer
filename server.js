@@ -12,11 +12,11 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB connection
-mongoose.connect('mongodb://localhost:27017/ecfr_analyzer', {
+mongoose.connect('mongodb+srv://Administrator:ZetaReticuli@cluster0.sbn7pdn.mongodb.net/ecfr_analyzer?retryWrites=true&w=majority&appName=Cluster0', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(() => {
-  console.log('MongoDB database connection established successfully');
+  console.log('MongoDB Atlas connection established successfully');
 }).catch(err => {
   console.error('MongoDB connection error:', err);
 });
