@@ -12,6 +12,16 @@ import {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
+// Format large numbers with proper formatting
+const formatNumber = (num) => {
+  if (num >= 1000000) {
+    return `${(num / 1000000).toFixed(1)}M`;
+  } else if (num >= 1000) {
+    return `${(num / 1000).toFixed(1)}K`;
+  }
+  return num.toString();
+};
+
 const HistoricalAnalysis = ({ historicalData }) => {
   const [timeframe, setTimeframe] = useState('all');
   const [viewType, setViewType] = useState('line');
@@ -51,16 +61,14 @@ const HistoricalAnalysis = ({ historicalData }) => {
     return filteredData.map(record => ({
       date: new Date(record.date).toLocaleDateString(),
       wordCount: record.totalWordCount,
-      changeRate: record.changes.reduce(
-        (sum, change) => sum + Math.abs(change.wordDifference), 
-        0
-      )
+      changeRate: Array.isArray(record.changes) ? 
+        record.changes.reduce((sum, change) => sum + Math.abs(change.wordDifference || 0), 0) : 0
     }));
   }, [historicalData, timeframe]);
   
   // Calculate summary metrics
   const summaryMetrics = useMemo(() => {
-    if (processedData.length === 0) return { 
+    if (processedData.length <= 1) return { 
       totalChange: 0, 
       avgChange: 0,
       maxChange: 0
@@ -70,7 +78,7 @@ const HistoricalAnalysis = ({ historicalData }) => {
     const lastRecord = processedData[processedData.length - 1];
     const totalChange = lastRecord.wordCount - firstRecord.wordCount;
     
-    const changeRates = processedData.map(record => record.changeRate);
+    const changeRates = processedData.map(record => record.changeRate || 0);
     const avgChange = changeRates.reduce((sum, rate) => sum + rate, 0) / changeRates.length;
     const maxChange = Math.max(...changeRates);
     
@@ -80,6 +88,26 @@ const HistoricalAnalysis = ({ historicalData }) => {
       maxChange
     };
   }, [processedData]);
+  
+  // Calculate appropriate Y-axis domain
+  const getYAxisDomain = () => {
+    if (processedData.length === 0) return [0, 100];
+    
+    const minValue = Math.min(...processedData.map(d => d.wordCount));
+    const maxValue = Math.max(...processedData.map(d => d.wordCount));
+    
+    // Add some padding
+    const padding = (maxValue - minValue) * 0.1;
+    return [Math.max(0, minValue - padding), maxValue + padding];
+  };
+  
+  // Calculate appropriate intervals for X-axis labels
+  const getXAxisInterval = () => {
+    const length = processedData.length;
+    if (length <= 7) return 0; // Show all labels for small datasets
+    if (length <= 15) return 1; // Show every other label for medium datasets
+    return Math.ceil(length / 10); // For large datasets, show ~10 labels
+  };
   
   return (
     <Box sx={{ flexGrow: 1, py: 3 }}>
@@ -176,11 +204,16 @@ const HistoricalAnalysis = ({ historicalData }) => {
                 dataKey="date" 
                 angle={-45} 
                 textAnchor="end"
-                height={60}
-                interval={Math.ceil(processedData.length / 15)}
+                height={70}
+                interval={getXAxisInterval()}
               />
-              <YAxis />
-              <Tooltip formatter={(value) => value.toLocaleString()} />
+              <YAxis 
+                domain={getYAxisDomain()}
+                tickFormatter={(value) => formatNumber(value)}
+              />
+              <Tooltip 
+                formatter={(value) => value.toLocaleString()}
+              />
               <Legend />
               <Line 
                 type="monotone" 
@@ -188,12 +221,14 @@ const HistoricalAnalysis = ({ historicalData }) => {
                 stroke="#8884d8" 
                 name="Total Word Count"
                 activeDot={{ r: 8 }}
+                strokeWidth={2}
               />
               <Line 
                 type="monotone" 
                 dataKey="changeRate" 
                 stroke="#82ca9d" 
                 name="Change Rate"
+                strokeWidth={2}
               />
             </LineChart>
           )}
@@ -208,10 +243,13 @@ const HistoricalAnalysis = ({ historicalData }) => {
                 dataKey="date" 
                 angle={-45} 
                 textAnchor="end"
-                height={60}
-                interval={Math.ceil(processedData.length / 15)}
+                height={70}
+                interval={getXAxisInterval()}
               />
-              <YAxis />
+              <YAxis 
+                domain={getYAxisDomain()}
+                tickFormatter={(value) => formatNumber(value)}
+              />
               <Tooltip formatter={(value) => value.toLocaleString()} />
               <Legend />
               <Area 
@@ -220,6 +258,7 @@ const HistoricalAnalysis = ({ historicalData }) => {
                 fill="#8884d8" 
                 stroke="#8884d8"
                 name="Total Word Count"
+                fillOpacity={0.6}
               />
               <Area 
                 type="monotone" 
@@ -227,6 +266,7 @@ const HistoricalAnalysis = ({ historicalData }) => {
                 fill="#82ca9d" 
                 stroke="#82ca9d"
                 name="Change Rate"
+                fillOpacity={0.6}
               />
             </AreaChart>
           )}
@@ -241,10 +281,13 @@ const HistoricalAnalysis = ({ historicalData }) => {
                 dataKey="date" 
                 angle={-45} 
                 textAnchor="end" 
-                height={60}
-                interval={Math.ceil(processedData.length / 15)}
+                height={70}
+                interval={getXAxisInterval()}
               />
-              <YAxis />
+              <YAxis 
+                domain={getYAxisDomain()}
+                tickFormatter={(value) => formatNumber(value)}
+              />
               <Tooltip formatter={(value) => value.toLocaleString()} />
               <Legend />
               <Bar dataKey="wordCount" name="Total Word Count" fill="#8884d8" />
