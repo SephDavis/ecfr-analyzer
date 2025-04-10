@@ -1,21 +1,12 @@
-// Enhanced AgencyAnalysis.js with extensive drill-down capabilities - FIXED VERSION
-import React, { useState, useMemo, useCallback } from 'react';
+// components/AgencyAnalysis.js
+import React, { useState, useMemo } from 'react';
 import { 
   Grid, Paper, Typography, Box, TextField, InputAdornment,
   Table, TableBody, TableCell, TableContainer, TableHead, 
   TableRow, TablePagination, TableSortLabel, 
   Card, CardContent, Chip, alpha, useTheme,
-  Button, IconButton, Tooltip, Divider, Zoom, Fab,
-  Dialog, DialogTitle, DialogContent, DialogActions, CircularProgress,
-  List, ListItem, ListItemText, ListItemIcon, Menu, MenuItem, LinearProgress
+  Button, IconButton, Tooltip, Divider
 } from '@mui/material';
-
-// Import recharts components
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
-  Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, 
-  Area, AreaChart, Treemap
-} from 'recharts';
 
 // Import icons
 import SearchIcon from '@mui/icons-material/Search';
@@ -25,912 +16,9 @@ import SortIcon from '@mui/icons-material/Sort';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import GavelIcon from '@mui/icons-material/Gavel';
-import AnalyticsIcon from '@mui/icons-material/Analytics';
-import ZoomInIcon from '@mui/icons-material/ZoomIn';
-import GetAppIcon from '@mui/icons-material/GetApp';
-import ShareIcon from '@mui/icons-material/Share';
-import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
-import CloseIcon from '@mui/icons-material/Close';
-import TimelineIcon from '@mui/icons-material/Timeline';
-import TouchAppIcon from '@mui/icons-material/TouchApp';
-import PieChartIcon from '@mui/icons-material/PieChart';
-import TableChartIcon from '@mui/icons-material/TableChart';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
 
-// Custom tooltip for charts with enhanced detail
-const CustomTooltip = ({ active, payload, label, onItemClick }) => {
-  const theme = useTheme();
-  
-  if (active && payload && payload.length) {
-    return (
-      <Paper
-        elevation={3}
-        sx={{
-          backgroundColor: 'background.paper',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          p: 1.5,
-          borderRadius: 1,
-          minWidth: 180,
-          maxWidth: 300
-        }}
-      >
-        <Typography variant="body2" color="text.secondary" gutterBottom fontWeight="bold">
-          {label}
-        </Typography>
-        {payload.map((entry, index) => (
-          <Box 
-            key={`tooltip-${index}`}
-            sx={{ 
-              py: 0.5,
-              '&:hover': { 
-                backgroundColor: alpha(entry.color || theme.palette.primary.main, 0.1),
-                cursor: 'pointer',
-                borderRadius: 1
-              },
-              pl: 1
-            }}
-            onClick={() => onItemClick && onItemClick(entry, label)}
-          >
-            <Typography
-              variant="body2"
-              sx={{ 
-                color: entry.color || theme.palette.primary.main,
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}
-            >
-              <span>{entry.name}: </span>
-              <span>{typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</span>
-            </Typography>
-          </Box>
-        ))}
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center', fontStyle: 'italic' }}>
-          Click for details
-        </Typography>
-      </Paper>
-    );
-  }
-  return null;
-};
-
-// Enhanced detail dialog component for agency drill-down
-const AgencyDetailDialog = ({ open, onClose, agency, onRegulationSelect }) => {
-  const theme = useTheme();
-  const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(false);
-  
-  // Simulate loading data on dialog open
-  React.useEffect(() => {
-    if (open) {
-      setLoading(true);
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [open]);
-
-  // Calculate agency stats
-  const avgWordsPerReg = agency ? Math.round(agency.wordCount / (agency.regulationCount || 1)) : 0;
-  const percentageOfTotal = agency ? ((agency.wordCount / (agency.totalWordCount || 1)) * 100).toFixed(1) : 0;
-  
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
-          <CircularProgress />
-        </Box>
-      );
-    }
-    
-    return (
-      <Box>
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>
-              {agency?.name || 'Agency Details'}
-            </Typography>
-            <Typography variant="body2" paragraph>
-              This agency is responsible for {agency?.regulationCount?.toLocaleString() || 0} regulations 
-              containing approximately {agency?.wordCount?.toLocaleString() || 0} words.
-            </Typography>
-            
-            <List dense>
-              <ListItem>
-                <ListItemIcon>
-                  <BusinessIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Agency Type" 
-                  secondary={agency?.name?.includes('Department') ? 'Executive Department' : 'Independent Agency'} 
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemIcon>
-                  <DescriptionIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Average Words per Regulation" 
-                  secondary={avgWordsPerReg.toLocaleString()} 
-                />
-              </ListItem>
-              <ListItem>
-                <ListItemIcon>
-                  <TimelineIcon color="primary" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Last Updated" 
-                  secondary={agency?.lastUpdated ? new Date(agency.lastUpdated).toLocaleDateString() : 'Unknown'} 
-                />
-              </ListItem>
-            </List>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>
-              Regulatory Impact
-            </Typography>
-            
-            <Box sx={{ height: 250, mb: 2 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: agency?.name, value: agency?.wordCount, color: theme.palette.primary.main },
-                      { name: 'All Other Agencies', value: (agency?.totalWordCount || 0) - (agency?.wordCount || 0), color: theme.palette.grey[300] }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {[
-                      { name: agency?.name, value: agency?.wordCount, color: theme.palette.primary.main },
-                      { name: 'All Other Agencies', value: (agency?.totalWordCount || 0) - (agency?.wordCount || 0), color: theme.palette.grey[300] }
-                    ].map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip formatter={(value) => value.toLocaleString()} />
-                </PieChart>
-              </ResponsiveContainer>
-            </Box>
-            
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                This agency represents{' '}
-                <Typography component="span" fontWeight="bold" color="primary.main">
-                  {percentageOfTotal}%
-                </Typography>{' '}
-                of all federal regulations by word count.
-              </Typography>
-            </Box>
-          </Grid>
-          
-          <Grid item xs={12}>
-            <Divider sx={{ my: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              Top Regulations
-            </Typography>
-            
-            <Paper variant="outlined" sx={{ maxHeight: 200, overflow: 'auto' }}>
-              <List dense>
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <ListItem 
-                    key={i} 
-                    divider
-                    button
-                    onClick={() => onRegulationSelect({
-                      id: `reg-${agency?.agencyId}-${i}`,
-                      title: `${agency?.name} Regulation ${i + 1}`,
-                      words: Math.round(avgWordsPerReg * (0.5 + Math.random())),
-                      lastUpdate: new Date(Date.now() - Math.random() * 10000000000).toISOString()
-                    })}
-                  >
-                    <ListItemIcon>
-                      <GavelIcon fontSize="small" color="secondary" />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`Regulation ${i + 1} - ${agency?.name} Standard ${100 + i}`}
-                      secondary={`Part ${400 + i * 10} • Approximately ${(Math.round(avgWordsPerReg * (0.5 + Math.random()))).toLocaleString()} words`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Paper>
-          </Grid>
-          
-          <Grid item xs={12}>
-            <Button 
-              fullWidth 
-              variant="contained" 
-              startIcon={<AnalyticsIcon />}
-              onClick={() => {
-                // Here we would navigate to a dedicated agency view
-                onClose();
-              }}
-            >
-              Explore All {agency?.name} Regulations
-            </Button>
-          </Grid>
-        </Grid>
-      </Box>
-    );
-  };
-  
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          backgroundImage: `radial-gradient(circle at top right, ${alpha(theme.palette.primary.main, 0.08)}, transparent 70%)`
-        }
-      }}
-    >
-      <DialogTitle sx={{ 
-        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <BusinessIcon sx={{ mr: 1 }} />
-          {agency?.name || 'Agency Details'}
-        </Box>
-        <IconButton onClick={onClose} aria-label="close">
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent sx={{ p: 3 }}>
-        {renderContent()}
-      </DialogContent>
-      <DialogActions sx={{ p: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-        <Button 
-          onClick={onClose} 
-          color="inherit"
-          sx={{ mr: 'auto' }}
-        >
-          Close
-        </Button>
-        <Button 
-          variant="contained" 
-          endIcon={<AnalyticsIcon />}
-          onClick={onClose}
-        >
-          Advanced Analysis
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
-// Regulation detail dialog component
-const RegulationDetailDialog = ({ open, onClose, regulation }) => {
-  const theme = useTheme();
-  const [loading, setLoading] = useState(false);
-  
-  // Simulate loading data on dialog open
-  React.useEffect(() => {
-    if (open) {
-      setLoading(true);
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [open]);
-  
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
-          <CircularProgress />
-        </Box>
-      );
-    }
-    
-    return (
-      <Box>
-        <Typography variant="h6" gutterBottom>
-          {regulation?.title || 'Regulation Details'}
-        </Typography>
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="body1" fontWeight="medium" gutterBottom>
-            Word Count: {regulation?.words?.toLocaleString() || 0}
-          </Typography>
-          <LinearProgress 
-            variant="determinate" 
-            value={Math.min(100, (regulation?.words / 10000) * 100)} 
-            sx={{ 
-              height: 10, 
-              borderRadius: 5,
-              backgroundColor: alpha(theme.palette.primary.main, 0.1),
-              '& .MuiLinearProgress-bar': {
-                borderRadius: 5
-              }
-            }}
-          />
-        </Box>
-        
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle2" gutterBottom color="text.secondary">
-                  Regulatory Category
-                </Typography>
-                <Typography variant="body1">
-                  {regulation?.category || 'Administrative Requirement'}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} md={6}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography variant="subtitle2" gutterBottom color="text.secondary">
-                  Last Amendment
-                </Typography>
-                <Typography variant="body1">
-                  {regulation?.lastUpdate ? new Date(regulation.lastUpdate).toLocaleDateString() : 'January 15, 2023'}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          
-          <Grid item xs={12}>
-            <Card variant="outlined" sx={{ mt: 2 }}>
-              <CardContent>
-                <Typography variant="subtitle2" gutterBottom color="text.secondary">
-                  Summary
-                </Typography>
-                <Typography variant="body2">
-                  This regulation establishes standards for {regulation?.title?.split(' ').slice(0, 3).join(' ')} and requires compliance 
-                  with various administrative, technical, and reporting requirements. It contains
-                  approximately {regulation?.words?.toLocaleString() || 0} words across multiple sections.
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-        
-        <Box sx={{ mt: 3 }}>
-          <Button 
-            variant="outlined" 
-            startIcon={<TableChartIcon />} 
-            fullWidth
-            onClick={onClose}
-          >
-            View Full Regulation Text
-          </Button>
-        </Box>
-      </Box>
-    );
-  };
-  
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          backgroundImage: `radial-gradient(circle at top right, ${alpha(theme.palette.secondary.main, 0.08)}, transparent 70%)`
-        }
-      }}
-    >
-      <DialogTitle sx={{ 
-        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <DescriptionIcon sx={{ mr: 1 }} />
-          Regulation Details
-        </Box>
-        <IconButton onClick={onClose} aria-label="close">
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent sx={{ p: 3 }}>
-        {renderContent()}
-      </DialogContent>
-      <DialogActions sx={{ p: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-        <Button 
-          onClick={onClose} 
-          color="inherit"
-          sx={{ mr: 'auto' }}
-        >
-          Close
-        </Button>
-        <Button 
-          variant="contained" 
-          endIcon={<AnalyticsIcon />}
-          onClick={onClose}
-        >
-          Analyze Impact
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
-// Enhanced trend analysis dialog
-const TrendAnalysisDialog = ({ open, onClose, data, title }) => {
-  const theme = useTheme();
-  const [loading, setLoading] = useState(false);
-  
-  // Simulate loading data on dialog open
-  React.useEffect(() => {
-    if (open) {
-      setLoading(true);
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [open]);
-  
-  // Generate historical trend data if not provided
-  const trendData = useMemo(() => {
-    if (data && data.length > 0) return data;
-    
-    // Generate mock trend data based on the current date
-    const currentYear = new Date().getFullYear();
-    return Array.from({ length: 6 }).map((_, i) => ({
-      year: (currentYear - 5 + i).toString(),
-      avgWords: Math.round(7000 + i * 500 + Math.random() * 800),
-      totalRegulations: Math.round(100 + i * 8 + Math.random() * 20)
-    }));
-  }, [data]);
-  
-  const renderContent = () => {
-    if (loading) {
-      return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
-          <CircularProgress />
-        </Box>
-      );
-    }
-    
-    return (
-      <Box>
-        <Typography variant="h6" gutterBottom>
-          {title || 'Historical Trend Analysis'}
-        </Typography>
-        
-        <Typography variant="body2" paragraph>
-          The chart shows the evolution of regulatory complexity over time, measured by average words per regulation.
-        </Typography>
-        
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart
-            data={trendData}
-            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-          >
-            <defs>
-              <linearGradient id="trendColorGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.8}/>
-                <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="year" />
-            <YAxis tickFormatter={(value) => `${(value).toLocaleString()}`} />
-            <RechartsTooltip 
-              formatter={(value) => value.toLocaleString()}
-              labelFormatter={(label) => `Year: ${label}`}
-            />
-            <Area 
-              type="monotone" 
-              dataKey="avgWords" 
-              name="Avg Words per Regulation"
-              stroke={theme.palette.primary.main} 
-              fillOpacity={1} 
-              fill="url(#trendColorGradient)" 
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-        
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Key Statistics
-          </Typography>
-          
-          <Grid container spacing={2}>
-            <Grid item xs={6} md={3}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Average Annual Growth
-                  </Typography>
-                  <Typography variant="h6" color="primary.main">
-                    {((trendData[trendData.length-1].avgWords / trendData[0].avgWords - 1) * 100 / (trendData.length - 1)).toFixed(1)}%
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Total Growth
-                  </Typography>
-                  <Typography variant="h6" color="primary.main">
-                    {((trendData[trendData.length-1].avgWords / trendData[0].avgWords - 1) * 100).toFixed(1)}%
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Highest Year
-                  </Typography>
-                  <Typography variant="h6" color="primary.main">
-                    {trendData.reduce((max, item) => 
-                      item.avgWords > max.avgWords ? item : max, trendData[0]).year}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={6} md={3}>
-              <Card variant="outlined">
-                <CardContent>
-                  <Typography variant="subtitle2" color="text.secondary">
-                    Projected Next Year
-                  </Typography>
-                  <Typography variant="h6" color="primary.main">
-                    {Math.round(trendData[trendData.length-1].avgWords * 1.06).toLocaleString()}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          </Grid>
-        </Box>
-      </Box>
-    );
-  };
-  
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          backgroundImage: `radial-gradient(circle at top right, ${alpha(theme.palette.info.main, 0.08)}, transparent 70%)`
-        }
-      }}
-    >
-      <DialogTitle sx={{ 
-        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <TimelineIcon sx={{ mr: 1 }} />
-          {title || 'Trend Analysis'}
-        </Box>
-        <IconButton onClick={onClose} aria-label="close">
-          <CloseIcon />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent sx={{ p: 3 }}>
-        {renderContent()}
-      </DialogContent>
-      <DialogActions sx={{ p: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
-        <Button 
-          onClick={onClose} 
-          color="inherit"
-          sx={{ mr: 'auto' }}
-        >
-          Close
-        </Button>
-        <Button 
-          variant="contained" 
-          endIcon={<AnalyticsIcon />}
-          onClick={onClose}
-        >
-          Detailed Analytics
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
-// Interactive card with hover effects
-const DrilldownCard = ({ title, value, subtitle, icon, trend, trendValue, onClick, color }) => {
-  const theme = useTheme();
-  const [hovered, setHovered] = useState(false);
-  
-  return (
-    <Card 
-      sx={{ 
-        height: '100%',
-        background: hovered 
-          ? `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.1)} 0%, ${alpha(color || theme.palette.primary.main, 0.2)} 100%)`
-          : `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.05)} 0%, ${alpha(color || theme.palette.primary.main, 0.1)} 100%)`,
-        position: 'relative',
-        overflow: 'hidden',
-        transition: 'all 0.3s ease-in-out',
-        transform: hovered ? 'translateY(-4px)' : 'none',
-        boxShadow: hovered ? `0 8px 16px ${alpha(color || theme.palette.primary.main, 0.2)}` : 'none',
-        cursor: 'pointer'
-      }}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <Box 
-        sx={{ 
-          position: 'absolute', 
-          top: -20, 
-          right: -20, 
-          opacity: 0.1,
-          transform: hovered ? 'rotate(20deg) scale(1.2)' : 'rotate(15deg)',
-          transition: 'transform 0.3s ease-in-out'
-        }}
-      >
-        {icon}
-      </Box>
-      
-      {hovered && (
-        <Box 
-          sx={{ 
-            position: 'absolute',
-            bottom: 8,
-            right: 8,
-            backgroundColor: alpha(theme.palette.background.paper, 0.6),
-            backdropFilter: 'blur(4px)',
-            borderRadius: '50%',
-            p: 0.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: `0 2px 6px ${alpha(theme.palette.common.black, 0.2)}`
-          }}
-        >
-          <ZoomInIcon fontSize="small" color="primary" />
-        </Box>
-      )}
-      
-      <CardContent>
-        <Box sx={{ mb: 1 }}>
-          <Typography 
-            variant="overline" 
-            color={color || "primary.main"} 
-            fontWeight="bold"
-            sx={{ 
-              transition: 'letter-spacing 0.3s ease',
-              letterSpacing: hovered ? '0.08em' : '0.05em'
-            }}
-          >
-            {title}
-          </Typography>
-        </Box>
-        <Typography 
-          variant="h3" 
-          component="div" 
-          fontWeight="bold"
-          sx={{ 
-            transition: 'transform 0.3s ease',
-            transform: hovered ? 'scale(1.05)' : 'none',
-            transformOrigin: 'left'
-          }}
-        >
-          {value}
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-          {trend && (
-            <>
-              {trendValue > 0 ? (
-                <TrendingUpIcon color="error" fontSize="small" sx={{ mr: 0.5 }} />
-              ) : (
-                <TrendingDownIcon color="success" fontSize="small" sx={{ mr: 0.5 }} />
-              )}
-              <Typography 
-                variant="body2" 
-                color={trendValue > 0 ? "error" : "success"}
-              >
-                {Math.abs(trendValue).toFixed(1)}% {trendValue > 0 ? "increase" : "decrease"}
-              </Typography>
-            </>
-          )}
-          {!trend && subtitle && (
-            <Typography variant="body2" color="text.secondary">
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
-        
-        {hovered && (
-          <Box 
-            sx={{ 
-              mt: 2, 
-              height: 2, 
-              width: '100%', 
-              backgroundColor: color || theme.palette.primary.main,
-              animation: 'pulse 1.5s infinite',
-              '@keyframes pulse': {
-                '0%': { opacity: 0.4 },
-                '50%': { opacity: 0.8 },
-                '100%': { opacity: 0.4 }
-              }
-            }} 
-          />
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-
-// Enhanced interactive bar chart component
-const EnhancedBarChart = ({ data, dataKey, xAxisKey, color, title, height, onItemClick }) => {
-  const theme = useTheme();
-  // Generate a unique ID for the gradient based on the chart title
-  const gradientId = useMemo(() => `barGradient-${title.replace(/\s+/g, '-').toLowerCase()}`, [title]);
-  
-  const handleBarClick = (data, index) => {
-    if (onItemClick) {
-      onItemClick(data, index);
-    }
-  };
-  
-  return (
-    <Paper sx={{ p: 3, height }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-        <Typography variant="h6" fontWeight="bold" gutterBottom>
-          {title}
-        </Typography>
-        <Tooltip title="Click any bar for detailed breakdown">
-          <Box sx={{ display: 'flex', alignItems: 'center', border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`, borderRadius: 1, px: 1, py: 0.5 }}>
-            <TouchAppIcon fontSize="small" color="primary" sx={{ mr: 0.5 }} />
-            <Typography variant="caption" color="primary.main">Interactive</Typography>
-          </Box>
-        </Tooltip>
-      </Box>
-      
-      <ResponsiveContainer width="100%" height="85%">
-        <BarChart
-          data={data}
-          margin={{ top: 5, right: 30, left: 20, bottom: 50 }}
-          barSize={40}
-        >
-          <defs>
-            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color || theme.palette.primary.main} stopOpacity={1} />
-              <stop offset="100%" stopColor={color || theme.palette.primary.main} stopOpacity={0.6} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-          <XAxis 
-            dataKey={xAxisKey} 
-            angle={-45} 
-            textAnchor="end"
-            height={70}
-            interval={0}
-            tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-          />
-          <YAxis 
-            width={80}
-            tickFormatter={(value) => value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
-            tick={{ fill: theme.palette.text.secondary }}
-          />
-          <RechartsTooltip 
-            content={<CustomTooltip onItemClick={(entry) => handleBarClick(entry.payload, entry.index)} />} 
-          />
-          <Bar 
-            dataKey={dataKey} 
-            name={dataKey} 
-            fill={`url(#${gradientId})`}
-            radius={[4, 4, 0, 0]}
-            onClick={handleBarClick}
-            cursor="pointer"
-            isAnimationActive={true}
-            animationDuration={1000}
-            animationEasing="ease-in-out"
-          />
-        </BarChart>
-      </ResponsiveContainer>
-    </Paper>
-  );
-};
-
-// Enhanced treemap component with drilldown
-const EnhancedTreemap = ({ data, title, onClick }) => {
-  const theme = useTheme();
-  
-  return (
-    <Paper sx={{ p: 3, height: 400 }}>
-      <Typography variant="h6" gutterBottom fontWeight="bold">
-        {title}
-      </Typography>
-      <Typography variant="body2" color="text.secondary" paragraph>
-        Relative size represents word count proportion. Click any segment to explore details.
-      </Typography>
-      <ResponsiveContainer width="100%" height={300}>
-        <Treemap
-          data={data}
-          dataKey="size"
-          nameKey="name"
-          aspectRatio={4/3}
-          stroke={theme.palette.background.paper}
-          onClick={onClick}
-          content={({ root, depth, x, y, width, height, index, payload, colors, rank, name }) => {
-            const percentage = payload && payload.percentage ? payload.percentage : 
-                              (root && root.value && payload && payload.value) ? 
-                              (payload.value / root.value) * 100 : 0;
-            
-            return (
-              <g>
-                <rect
-                  x={x}
-                  y={y}
-                  width={width}
-                  height={height}
-                  style={{
-                    fill: theme.palette.chart && theme.palette.chart[index % theme.palette.chart.length] || 
-                         theme.palette.primary.main,
-                    stroke: theme.palette.background.paper,
-                    strokeWidth: 2,
-                    strokeOpacity: 1,
-                    cursor: 'pointer'
-                  }}
-                />
-                {width > 30 && height > 30 && (
-                  <text
-                    x={x + width / 2}
-                    y={y + height / 2}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    style={{
-                      fontSize: Math.min(width, height) > 60 ? 14 : 10,
-                      fill: '#fff',
-                      pointerEvents: 'none'
-                    }}
-                  >
-                    {name}
-                  </text>
-                )}
-                {width > 60 && height > 40 && (
-                  <text
-                    x={x + width / 2}
-                    y={y + height / 2 + 15}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    style={{
-                      fontSize: 10,
-                      fill: '#fff',
-                      opacity: 0.7,
-                      pointerEvents: 'none'
-                    }}
-                  >
-                    {`${percentage.toFixed(1)}%`}
-                  </text>
-                )}
-              </g>
-            );
-          }}
-        />
-      </ResponsiveContainer>
-    </Paper>
-  );
-};
+// Import custom components
+import FuturisticChart from './FuturisticChart';
 
 const AgencyAnalysis = ({ agenciesData }) => {
   const theme = useTheme();
@@ -939,11 +27,6 @@ const AgencyAnalysis = ({ agenciesData }) => {
   const [search, setSearch] = useState('');
   const [orderBy, setOrderBy] = useState('wordCount');
   const [order, setOrder] = useState('desc');
-  const [expandedView, setExpandedView] = useState(false);
-  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
-  const [selectedAgency, setSelectedAgency] = useState(null);
-  const [selectedRegulation, setSelectedRegulation] = useState(null);
-  const [showTrendDialog, setShowTrendDialog] = useState(false);
   
   // Handle sort request
   const handleRequestSort = (property) => {
@@ -1006,13 +89,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
       .slice(0, 10)
       .map(agency => ({
         name: agency.name.length > 25 ? agency.name.substring(0, 25) + '...' : agency.name,
-        wordCount: agency.wordCount,
-        regulationCount: agency.regulationCount,
-        avgWordsPerRegulation: agency.avgWordsPerRegulation,
-        lastUpdated: agency.lastUpdated,
-        agencyId: agency.agencyId,
-        shortName: agency.shortName,
-        totalWordCount: agenciesWithAvg.reduce((sum, a) => sum + a.wordCount, 0)
+        wordCount: agency.wordCount
       }));
   }, [agenciesWithAvg]);
   
@@ -1023,264 +100,172 @@ const AgencyAnalysis = ({ agenciesData }) => {
       .slice(0, 5)
       .map(agency => ({
         name: agency.name.length > 25 ? agency.name.substring(0, 25) + '...' : agency.name,
-        avgWords: agency.avgWordsPerRegulation,
-        wordCount: agency.wordCount,
-        regulationCount: agency.regulationCount,
-        lastUpdated: agency.lastUpdated,
-        agencyId: agency.agencyId,
-        shortName: agency.shortName,
-        totalWordCount: agenciesWithAvg.reduce((sum, a) => sum + a.wordCount, 0)
+        avgWords: agency.avgWordsPerRegulation
       }));
   }, [agenciesWithAvg]);
 
-  // Calculate total word count
-  const totalWordCount = agenciesData.reduce((sum, agency) => sum + agency.wordCount, 0);
-  
-  // Calculate total regulations
-  const totalRegulations = agenciesData.reduce((sum, agency) => sum + agency.regulationCount, 0);
-  
-  // Create data for treemap visualization of agency word count
-  const treemapData = useMemo(() => {
-    return topByWordCount.map(agency => ({
-      name: agency.name,
-      size: agency.wordCount,
-      percentage: (agency.wordCount / totalWordCount) * 100,
-      ...agency
-    }));
-  }, [topByWordCount, totalWordCount]);
-  
-  // Calculate the complexity growth rate (mock data for illustration)
-  const complexityGrowthRate = 2.7;
-  
-  // Handle menu operations
-  const handleMenuOpen = (event) => {
-    setMenuAnchorEl(event.currentTarget);
-  };
-  
-  const handleMenuClose = () => {
-    setMenuAnchorEl(null);
-  };
-  
-  const handleExpandView = () => {
-    setExpandedView(!expandedView);
-    handleMenuClose();
-  };
-  
-  // Handle agency selection for detail dialog
-  const handleAgencySelect = (agency) => {
-    setSelectedAgency(agency);
-  };
-  
-  // Handle regulation selection for detail dialog
-  const handleRegulationSelect = (regulation) => {
-    setSelectedRegulation(regulation);
-    setSelectedAgency(null); // Close agency dialog when opening regulation
-  };
-  
-  // Generate unique ID for the complexity gradient
-  const complexityGradientId = "complexityGradient-" + Math.random().toString(36).substring(2, 9);
+  // Chart colors
+  const chartColors = [theme.palette.primary.main, theme.palette.secondary.main];
   
   return (
     <Box>
-      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 0.5 }}>
-            Agency Analysis
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Detailed breakdown of regulatory agencies and their impact
-          </Typography>
-        </Box>
-        <Box>
-          <Tooltip title="Analysis Options">
-            <IconButton onClick={handleMenuOpen}>
-              <MoreVertIcon />
-            </IconButton>
-          </Tooltip>
-          <Menu
-            anchorEl={menuAnchorEl}
-            open={Boolean(menuAnchorEl)}
-            onClose={handleMenuClose}
-          >
-            <MenuItem onClick={handleMenuClose}>
-              <GetAppIcon fontSize="small" sx={{ mr: 1 }} />
-              Export Data
-            </MenuItem>
-            <MenuItem onClick={handleMenuClose}>
-              <ShareIcon fontSize="small" sx={{ mr: 1 }} />
-              Share Analysis
-            </MenuItem>
-            <MenuItem onClick={handleExpandView}>
-              <ZoomInIcon fontSize="small" sx={{ mr: 1 }} />
-              {expandedView ? 'Compact View' : 'Expanded View'}
-            </MenuItem>
-          </Menu>
-        </Box>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 0.5 }}>
+          Agency Analysis
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Detailed breakdown of regulatory agencies and their impact
+        </Typography>
       </Box>
       
       {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
-          <DrilldownCard
-            title="TOTAL AGENCIES"
-            value={agenciesData.length.toLocaleString()}
-            subtitle="Federal regulatory bodies"
-            icon={<BusinessIcon sx={{ fontSize: 120 }} />}
-            color={theme.palette.primary.main}
-            onClick={() => setShowTrendDialog(true)}
-          />
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ 
+            height: '100%',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.15)} 100%)`,
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'transform 0.3s ease-in-out',
+            '&:hover': {
+              transform: 'translateY(-4px)'
+            }
+          }}>
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: -30, 
+                right: -30, 
+                opacity: 0.1,
+                transform: 'rotate(15deg)'
+              }}
+            >
+              <BusinessIcon sx={{ fontSize: 140 }} />
+            </Box>
+            <CardContent>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="overline" color="primary.main" fontWeight="bold">
+                  TOTAL AGENCIES
+                </Typography>
+              </Box>
+              <Typography variant="h3" component="div" fontWeight="bold">
+                {agenciesData.length.toLocaleString()}
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Federal regulatory bodies
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
-          <DrilldownCard
-            title="AVERAGE REGULATIONS"
-            value={Math.round(agenciesData.reduce((sum, agency) => sum + agency.regulationCount, 0) / 
-              (agenciesData.length || 1)).toLocaleString()}
-            subtitle="Per agency"
-            icon={<DescriptionIcon sx={{ fontSize: 120 }} />}
-            color={theme.palette.secondary.main}
-            onClick={() => setSelectedRegulation({
-              title: "Average Regulation",
-              words: Math.round(totalWordCount / totalRegulations),
-              lastUpdate: new Date().toISOString(),
-              category: "All Categories"
-            })}
-          />
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ 
+            height: '100%',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.15)} 100%)`,
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'transform 0.3s ease-in-out',
+            '&:hover': {
+              transform: 'translateY(-4px)'
+            }
+          }}>
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: -30, 
+                right: -30, 
+                opacity: 0.1,
+                transform: 'rotate(15deg)'
+              }}
+            >
+              <DescriptionIcon sx={{ fontSize: 140 }} />
+            </Box>
+            <CardContent>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="overline" color="secondary.main" fontWeight="bold">
+                  AVERAGE REGULATIONS
+                </Typography>
+              </Box>
+              <Typography variant="h3" component="div" fontWeight="bold">
+                {Math.round(agenciesData.reduce((sum, agency) => sum + agency.regulationCount, 0) / 
+                  (agenciesData.length || 1)).toLocaleString()}
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Per agency
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
-          <DrilldownCard
-            title="AVERAGE WORD COUNT"
-            value={Math.round(agenciesData.reduce((sum, agency) => sum + agency.wordCount, 0) / 
-              (agenciesData.length || 1)).toLocaleString()}
-            subtitle="Words per agency"
-            trend={true}
-            trendValue={complexityGrowthRate}
-            icon={<SortIcon sx={{ fontSize: 120 }} />}
-            color={theme.palette.chart ? theme.palette.chart[2] : theme.palette.info.main}
-            onClick={() => setShowTrendDialog(true)}
-          />
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ 
+            height: '100%',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.chart[2], 0.05)} 0%, ${alpha(theme.palette.chart[2], 0.15)} 100%)`,
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'transform 0.3s ease-in-out',
+            '&:hover': {
+              transform: 'translateY(-4px)'
+            }
+          }}>
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: -30, 
+                right: -30, 
+                opacity: 0.1,
+                transform: 'rotate(15deg)'
+              }}
+            >
+              <SortIcon sx={{ fontSize: 140 }} />
+            </Box>
+            <CardContent>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="overline" sx={{ color: theme.palette.chart[2] }} fontWeight="bold">
+                  AVERAGE WORD COUNT
+                </Typography>
+              </Box>
+              <Typography variant="h3" component="div" fontWeight="bold">
+                {Math.round(agenciesData.reduce((sum, agency) => sum + agency.wordCount, 0) / 
+                  (agenciesData.length || 1)).toLocaleString()}
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Words per agency
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-        
-        {expandedView && (
-          <Grid item xs={12} sm={6} md={3}>
-            <DrilldownCard
-              title="COMPLEXITY SCORE"
-              value={(Math.log(totalWordCount) / Math.log(10)).toFixed(1)}
-              subtitle="Logarithmic complexity index"
-              icon={<AnalyticsIcon sx={{ fontSize: 120 }} />}
-              color={theme.palette.chart ? theme.palette.chart[3] : theme.palette.warning.main}
-              onClick={() => setShowTrendDialog(true)}
-            />
-          </Grid>
-        )}
       </Grid>
       
       {/* Main Charts */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        {/* Treemap visualization (visible in expanded view) */}
-        {expandedView && (
-          <Grid item xs={12}>
-            <EnhancedTreemap 
-              data={treemapData}
-              title="Regulatory Footprint - Agency Distribution"
-              onClick={(data) => {
-                const agency = topByWordCount.find(a => a.name === data.name);
-                if (agency) {
-                  handleAgencySelect(agency);
-                }
-              }}
-            />
-          </Grid>
-        )}
-        
-        <Grid item xs={12} lg={expandedView ? 8 : 7}>
-          <EnhancedBarChart
+        <Grid item xs={12} lg={7}>
+          <FuturisticChart
+            type="bar"
             data={topByWordCount}
             dataKey="wordCount"
-            xAxisKey="name"
-            color={theme.palette.primary.main}
             title="Top 10 Agencies by Word Count"
+            subtitle="Agencies with the largest regulatory footprint"
             height={450}
-            onItemClick={(data) => {
-              const agency = topByWordCount.find(a => a.name === data.name);
-              if (agency) {
-                handleAgencySelect(agency);
-              }
-            }}
+            rotateLabels={true}
+            colors={[theme.palette.primary.main]}
           />
         </Grid>
-        <Grid item xs={12} lg={expandedView ? 4 : 5}>
-          <Paper sx={{ p: 3, height: 450 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-              <Typography variant="h6" fontWeight="bold" gutterBottom>
-                Top 5 Agencies by Complexity
-              </Typography>
-              <Tooltip title="Click any bar for detailed breakdown">
-                <Box sx={{ display: 'flex', alignItems: 'center', border: `1px solid ${alpha(theme.palette.secondary.main, 0.3)}`, borderRadius: 1, px: 1, py: 0.5 }}>
-                  <TouchAppIcon fontSize="small" color="secondary" sx={{ mr: 0.5 }} />
-                  <Typography variant="caption" color="secondary.main">Interactive</Typography>
-                </Box>
-              </Tooltip>
-            </Box>
-            
-            <ResponsiveContainer width="100%" height="85%">
-              <BarChart
-                layout="vertical"
-                data={topByAvgWords}
-                margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
-                <XAxis 
-                  type="number" 
-                  tickFormatter={(value) => value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
-                  tick={{ fill: theme.palette.text.secondary }}
-                />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  width={150}
-                  tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                />
-                <RechartsTooltip 
-                  content={<CustomTooltip onItemClick={(entry) => {
-                    const agency = topByAvgWords.find(a => a.name === entry.name);
-                    if (agency) {
-                      handleAgencySelect(agency);
-                    }
-                  }} />} 
-                />
-                // And replace it with this approach:
-<defs>
-  {topByAvgWords.map((entry, index) => (
-    <linearGradient 
-      key={`gradient-${index}`} 
-      id={`complexityGradient-${index}`} 
-      x1="0" 
-      y1="0" 
-      x2="1" 
-      y2="0"
-    >
-      <stop offset="0%" stopColor={theme.palette.secondary.dark} stopOpacity={0.8} />
-      <stop offset="100%" stopColor={theme.palette.secondary.main} stopOpacity={1} />
-    </linearGradient>
-  ))}
-</defs>
-<Bar 
-  dataKey="avgWords" 
-  name="Avg Words per Regulation" 
-  // Use a fill function to apply specific gradient to each bar
-  fill={(entry, index) => `url(#complexityGradient-${index})`}
-  radius={[0, 4, 4, 0]}
-  cursor="pointer"
-  onClick={(data) => {
-    const agency = topByAvgWords.find(a => a.name === data.name);
-    if (agency) {
-      handleAgencySelect(agency);
-    }
-  }}
-/>
-              </BarChart>
-            </ResponsiveContainer>
-          </Paper>
+        <Grid item xs={12} lg={5}>
+          <FuturisticChart
+            type="bar"
+            data={topByAvgWords}
+            dataKey="avgWords"
+            title="Top 5 Agencies by Complexity"
+            subtitle="Measured by average words per regulation"
+            height={450}
+            layout="vertical"
+            colors={[theme.palette.secondary.main]}
+          />
         </Grid>
       </Grid>
       
@@ -1292,7 +277,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
               Agency Database
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Comprehensive list of all regulatory agencies. Click on any row for detailed analysis.
+              Comprehensive list of all regulatory agencies
             </Typography>
           </Grid>
           <Grid item xs={12} md={6}>
@@ -1425,13 +410,8 @@ const AgencyAnalysis = ({ agenciesData }) => {
                       '&:hover': { 
                         backgroundColor: alpha(theme.palette.primary.main, 0.05) 
                       },
-                      transition: 'background-color 0.2s',
-                      cursor: 'pointer'
+                      transition: 'background-color 0.2s'
                     }}
-                    onClick={() => handleAgencySelect({
-                      ...agency,
-                      totalWordCount
-                    })}
                   >
                     <TableCell component="th" scope="row" sx={{ maxWidth: 250 }}>
                       <Typography 
@@ -1506,27 +486,12 @@ const AgencyAnalysis = ({ agenciesData }) => {
                     </TableCell>
                     <TableCell align="center">
                       <Tooltip title="View Details">
-                        <IconButton 
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAgencySelect({
-                              ...agency,
-                              totalWordCount
-                            });
-                          }}
-                        >
+                        <IconButton size="small">
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="More Options">
-                        <IconButton 
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Additional action menu could be implemented here
-                          }}
-                        >
+                        <IconButton size="small">
                           <MoreVertIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
@@ -1621,7 +586,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
                   Lowest complexity:
                 </Typography>
                 <Typography variant="body2" fontWeight="medium">
-                {[...agenciesWithAvg]
+                  {[...agenciesWithAvg]
                     .filter(a => a.avgWordsPerRegulation > 0)
                     .sort((a, b) => a.avgWordsPerRegulation - b.avgWordsPerRegulation)[0]?.name || 'N/A'}
                 </Typography>
@@ -1646,165 +611,10 @@ const AgencyAnalysis = ({ agenciesData }) => {
                   })()} words per regulation
                 </Typography>
               </Box>
-              
-              <Box sx={{ mt: 3 }}>
-                <Button 
-                  variant="outlined" 
-                  startIcon={<AnalyticsIcon />} 
-                  fullWidth
-                  onClick={() => setShowTrendDialog(true)}
-                >
-                  View Historical Trends
-                </Button>
-              </Box>
             </Box>
           </Grid>
         </Grid>
-        
-        {/* Interactive regulatory impact visualization - Added in expanded view */}
-        {expandedView && (
-          <>
-            <Divider sx={{ my: 3 }} />
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="h6" fontWeight="bold" gutterBottom>
-                Regulatory Impact by Agency Type
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Comparison between executive departments and independent agencies
-              </Typography>
-            </Box>
-            
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={7}>
-                <ResponsiveContainer width="100%" height={350}>
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { 
-                          name: 'Executive Departments', 
-                          value: agenciesData
-                            .filter(a => a.name.includes('Department'))
-                            .reduce((sum, a) => sum + a.wordCount, 0) 
-                        },
-                        { 
-                          name: 'Independent Agencies', 
-                          value: agenciesData
-                            .filter(a => !a.name.includes('Department'))
-                            .reduce((sum, a) => sum + a.wordCount, 0) 
-                        }
-                      ]}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={100}
-                      outerRadius={140}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                      labelLine={true}
-                      onClick={(data) => {
-                        // Could implement additional filtering by agency type
-                        setSearch(data.name.includes('Executive') ? 'Department' : '');
-                      }}
-                    >
-                      <Cell fill={theme.palette.primary.main} />
-                      <Cell fill={theme.palette.secondary.main} />
-                    </Pie>
-                    <RechartsTooltip 
-                      formatter={(value) => value.toLocaleString()}
-                      cursor={{ fill: 'transparent' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </Grid>
-              <Grid item xs={12} md={5}>
-                <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
-                  Regulatory Distribution
-                </Typography>
-                <Typography variant="body2" paragraph>
-                  Executive departments and independent agencies differ significantly in their regulatory footprint.
-                  Executive departments, being part of the cabinet, tend to have broader regulatory authority over 
-                  fundamental aspects of governance and commerce.
-                </Typography>
-                <Typography variant="body2" paragraph>
-                  Independent agencies, while more numerous, often have more specialized and targeted regulatory domains.
-                  The chart shows the relative distribution of regulatory word count between these two categories of 
-                  federal agencies.
-                </Typography>
-                
-                <Box sx={{ mt: 2 }}>
-                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                    Key Statistics
-                  </Typography>
-                  
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <Card variant="outlined">
-                        <CardContent sx={{ py: 1.5 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Executive Count
-                          </Typography>
-                          <Typography variant="h6" color="primary.main">
-                            {agenciesData.filter(a => a.name.includes('Department')).length}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <Card variant="outlined">
-                        <CardContent sx={{ py: 1.5 }}>
-                          <Typography variant="caption" color="text.secondary">
-                            Independent Count
-                          </Typography>
-                          <Typography variant="h6" color="secondary.main">
-                            {agenciesData.filter(a => !a.name.includes('Department')).length}
-                          </Typography>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  </Grid>
-                </Box>
-              </Grid>
-            </Grid>
-          </>
-        )}
       </Paper>
-      
-      {/* Dialogs for drill-down analysis */}
-      
-      {/* Agency Detail Dialog */}
-      <AgencyDetailDialog 
-        open={selectedAgency !== null}
-        onClose={() => setSelectedAgency(null)}
-        agency={selectedAgency}
-        onRegulationSelect={handleRegulationSelect}
-      />
-      
-      {/* Regulation Detail Dialog */}
-      <RegulationDetailDialog 
-        open={selectedRegulation !== null}
-        onClose={() => setSelectedRegulation(null)}
-        regulation={selectedRegulation}
-      />
-      
-      {/* Trend Analysis Dialog */}
-      <TrendAnalysisDialog 
-        open={showTrendDialog}
-        onClose={() => setShowTrendDialog(false)}
-        title="Agency Complexity Trends"
-        data={null} // Would pass historical data here if available
-      />
-      
-      {/* Floating action button for expanded view */}
-      <Zoom in={true}>
-        <Fab 
-          color="primary" 
-          aria-label="expand" 
-          sx={{ position: 'fixed', bottom: 24, right: 24 }}
-          onClick={handleExpandView}
-        >
-          {expandedView ? <CompareArrowsIcon /> : <ZoomInIcon />}
-        </Fab>
-      </Zoom>
     </Box>
   );
 };

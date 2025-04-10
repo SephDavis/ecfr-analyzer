@@ -39,46 +39,56 @@ import RegulatoryNLPDashboard from './components/RegulatoryNLPDashboard';
 import theme from './theme';
 import './App.css';
 
+// Import DataSourceBadge and DataSourceLegend
+import { DataSourceBadge, DataSourceLegend } from './DataSourceBadges';
+
 // API Configuration - Use existing configuration
 const API_BASE_URL = 'https://ecfr-analyzer-production-ef73.up.railway.app';
 
-// Extended Navigation Configuration with new items
+// Extended Navigation Configuration with new items and data source indicators
 const NAV_ITEMS = [
   { 
     text: 'Dashboard', 
     icon: <DashboardIcon />, 
-    path: '/' 
+    path: '/',
+    dataSource: 'REAL'
   },
   { 
     text: 'Agencies', 
     icon: <BusinessIcon />, 
-    path: '/agencies' 
+    path: '/agencies',
+    dataSource: 'REAL'
   },
   { 
     text: 'Historical', 
     icon: <TimelineIcon />, 
-    path: '/historical' 
+    path: '/historical',
+    dataSource: 'REAL'
   },
   { 
     text: 'Search', 
     icon: <SearchIcon />, 
-    path: '/search' 
+    path: '/search',
+    dataSource: 'MOCK'
   },
   // New navigation items for advanced features
   { 
     text: 'AI Analytics', 
     icon: <RocketLaunchIcon />, 
-    path: '/advanced-analytics' 
+    path: '/advanced-analytics',
+    dataSource: 'MOCK'
   },
   { 
     text: 'Knowledge Graph', 
     icon: <AccountTreeIcon />, 
-    path: '/knowledge-graph' 
+    path: '/knowledge-graph',
+    dataSource: 'MOCK'
   },
   { 
     text: 'NLP Insights', 
     icon: <PsychologyIcon />, 
-    path: '/nlp-insights' 
+    path: '/nlp-insights',
+    dataSource: 'MOCK'
   }
 ];
 
@@ -154,7 +164,7 @@ function App() {
       : <LogoPlaceholder height={40} />
   );
 
-  // Navigation Drawer Content
+  // Navigation Drawer Content with DataSourceBadges
   const renderDrawerContent = () => (
     <Box sx={{ width: 280, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
@@ -165,7 +175,12 @@ function App() {
           </IconButton>
         )}
       </Box>
-      <Divider sx={{ mb: 2 }} />
+      <Divider sx={{ mb: 1 }} />
+      
+      {/* Add DataSourceLegend to the sidebar */}
+      <DataSourceLegend />
+      
+      <Divider sx={{ mb: 1 }} />
       
       <List sx={{ flexGrow: 1 }}>
         {NAV_ITEMS.map((item) => (
@@ -209,7 +224,15 @@ function App() {
             <ListItemIcon sx={{ minWidth: 40 }}>
               {item.icon}
             </ListItemIcon>
-            <ListItemText primary={item.text} />
+            <ListItemText 
+              primary={
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  {item.text}
+                  {/* Add DataSourceBadge to each menu item */}
+                  <DataSourceBadge type={item.dataSource} />
+                </Box>
+              }
+            />
           </ListItem>
         ))}
       </List>

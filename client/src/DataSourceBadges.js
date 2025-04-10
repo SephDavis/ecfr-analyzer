@@ -35,7 +35,7 @@ const DataSourceLegend = () => {
     fontSize: '12px',
     fontWeight: 'bold',
     marginBottom: '8px',
-    color: 'rgba(0, 0, 0, 0.6)',
+    color: 'rgba(255, 255, 255, 0.7)', // Changed to lighter color for dark theme
   };
   
   const legendItemStyle = {
