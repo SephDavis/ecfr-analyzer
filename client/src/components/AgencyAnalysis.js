@@ -1,4 +1,4 @@
-// Enhanced AgencyAnalysis.js with extensive drill-down capabilities
+// Enhanced AgencyAnalysis.js with extensive drill-down capabilities - FIXED VERSION
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Grid, Paper, Typography, Box, TextField, InputAdornment,
@@ -40,8 +40,6 @@ import PieChartIcon from '@mui/icons-material/PieChart';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 
-// Import custom components (placeholder, you would implement this separately)
-import FuturisticChart from './FuturisticChart';
 // Custom tooltip for charts with enhanced detail
 const CustomTooltip = ({ active, payload, label, onItemClick }) => {
   const theme = useTheme();
@@ -522,7 +520,7 @@ const TrendAnalysisDialog = ({ open, onClose, data, title }) => {
             margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
           >
             <defs>
-              <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id="trendColorGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.8}/>
                 <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
               </linearGradient>
@@ -540,7 +538,7 @@ const TrendAnalysisDialog = ({ open, onClose, data, title }) => {
               name="Avg Words per Regulation"
               stroke={theme.palette.primary.main} 
               fillOpacity={1} 
-              fill="url(#colorGradient)" 
+              fill="url(#trendColorGradient)" 
             />
           </AreaChart>
         </ResponsiveContainer>
@@ -784,6 +782,8 @@ const DrilldownCard = ({ title, value, subtitle, icon, trend, trendValue, onClic
 // Enhanced interactive bar chart component
 const EnhancedBarChart = ({ data, dataKey, xAxisKey, color, title, height, onItemClick }) => {
   const theme = useTheme();
+  // Generate a unique ID for the gradient based on the chart title
+  const gradientId = useMemo(() => `barGradient-${title.replace(/\s+/g, '-').toLowerCase()}`, [title]);
   
   const handleBarClick = (data, index) => {
     if (onItemClick) {
@@ -812,7 +812,7 @@ const EnhancedBarChart = ({ data, dataKey, xAxisKey, color, title, height, onIte
           barSize={40}
         >
           <defs>
-            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={color || theme.palette.primary.main} stopOpacity={1} />
               <stop offset="100%" stopColor={color || theme.palette.primary.main} stopOpacity={0.6} />
             </linearGradient>
@@ -837,7 +837,7 @@ const EnhancedBarChart = ({ data, dataKey, xAxisKey, color, title, height, onIte
           <Bar 
             dataKey={dataKey} 
             name={dataKey} 
-            fill="url(#barGradient)" 
+            fill={`url(#${gradientId})`}
             radius={[4, 4, 0, 0]}
             onClick={handleBarClick}
             cursor="pointer"
@@ -884,7 +884,8 @@ const EnhancedTreemap = ({ data, title, onClick }) => {
                   width={width}
                   height={height}
                   style={{
-                    fill: theme.palette.chart[index % theme.palette.chart.length],
+                    fill: theme.palette.chart && theme.palette.chart[index % theme.palette.chart.length] || 
+                         theme.palette.primary.main,
                     stroke: theme.palette.background.paper,
                     strokeWidth: 2,
                     strokeOpacity: 1,
@@ -1076,8 +1077,8 @@ const AgencyAnalysis = ({ agenciesData }) => {
     setSelectedAgency(null); // Close agency dialog when opening regulation
   };
   
-  // Chart colors
-  const chartColors = [theme.palette.primary.main, theme.palette.secondary.main];
+  // Generate unique ID for the complexity gradient
+  const complexityGradientId = "complexityGradient-" + Math.random().toString(36).substring(2, 9);
   
   return (
     <Box>
@@ -1154,7 +1155,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
             trend={true}
             trendValue={complexityGrowthRate}
             icon={<SortIcon sx={{ fontSize: 120 }} />}
-            color={theme.palette.chart[2]}
+            color={theme.palette.chart ? theme.palette.chart[2] : theme.palette.info.main}
             onClick={() => setShowTrendDialog(true)}
           />
         </Grid>
@@ -1166,7 +1167,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
               value={(Math.log(totalWordCount) / Math.log(10)).toFixed(1)}
               subtitle="Logarithmic complexity index"
               icon={<AnalyticsIcon sx={{ fontSize: 120 }} />}
-              color={theme.palette.chart[3]}
+              color={theme.palette.chart ? theme.palette.chart[3] : theme.palette.warning.main}
               onClick={() => setShowTrendDialog(true)}
             />
           </Grid>
@@ -1248,7 +1249,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
                   }} />} 
                 />
                 <defs>
-                  <linearGradient id="complexityGradient" x1="0" y1="0" x2="1" y2="0">
+                  <linearGradient id={complexityGradientId} x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor={theme.palette.secondary.dark} stopOpacity={0.8} />
                     <stop offset="100%" stopColor={theme.palette.secondary.main} stopOpacity={1} />
                   </linearGradient>
@@ -1256,7 +1257,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
                 <Bar 
                   dataKey="avgWords" 
                   name="Avg Words per Regulation" 
-                  fill="url(#complexityGradient)" 
+                  fill={`url(#${complexityGradientId})`}
                   radius={[0, 4, 4, 0]}
                   cursor="pointer"
                   onClick={(data) => {
