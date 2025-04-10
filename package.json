@@ -3,15 +3,14 @@
   "version": "1.0.0",
   "description": "A tool to analyze Federal Regulations from the eCFR",
   "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "server": "nodemon server.js",
-    "client": "cd client && npm start",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "build": "cd client && npm run build",
-    "install-client": "cd client && npm install",
-    "heroku-postbuild": "npm run install-client && npm run build"
-  },
+"scripts": {
+  "start": "node server.js",
+  "server": "nodemon server.js",
+  "client": "cd client && npm start",
+  "dev": "concurrently \"npm run server\" \"npm run client\"",
+  "build-frontend": "cd client && npm run build",
+  "install-client": "cd client && npm install"
+},
   "keywords": [
     "ecfr",
     "federal",
