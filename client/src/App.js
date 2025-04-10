@@ -216,7 +216,7 @@ function App() {
       
       <Box sx={{ p: 2, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary">
-          © 2025 eCFR Analyzer
+          © 2025 Reticuli Technologies - All Rights Reserved
         </Typography>
       </Box>
     </Box>
@@ -501,7 +501,7 @@ function App() {
               }}
             >
               <Typography variant="body2" color="text.secondary">
-                © 2025 eCFR Analyzer — All Rights Reserved
+               © 2025 Reticuli Technologies - All Rights Reserved
               </Typography>
             </Box>
           </Box>
