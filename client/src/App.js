@@ -1,5 +1,4 @@
-// App.js
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Route, Routes, NavLink } from 'react-router-dom';
 import axios from 'axios';
 import { ThemeProvider } from '@mui/material/styles';
@@ -8,10 +7,10 @@ import {
   CircularProgress, Alert, Snackbar, Button,
   Drawer, List, ListItem, ListItemIcon, ListItemText,
   CssBaseline, useMediaQuery, IconButton, Divider,
-  Tooltip
+  Tooltip, alpha
 } from '@mui/material';
 
-// Import icons
+// Icons
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import BusinessIcon from '@mui/icons-material/Business';
 import TimelineIcon from '@mui/icons-material/Timeline';
@@ -20,7 +19,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
-// Import components
+// Components
 import Dashboard from './components/Dashboard';
 import AgencyAnalysis from './components/AgencyAnalysis';
 import HistoricalAnalysis from './components/HistoricalAnalysis';
@@ -28,85 +27,83 @@ import Search from './components/Search';
 import ParticlesBackground from './components/ParticlesBackground';
 import LogoPlaceholder from './components/LogoPlaceholder';
 
-// Import theme
+// Theme and Styles
 import theme from './theme';
-
-// Import CSS
 import './App.css';
 
-// Conditionally import logo - falls back to placeholder if not available
-let logo;
-try {
-  logo = require('./assets/logo.svg').default;
-} catch (error) {
-  console.log('Logo not found, using placeholder');
-  logo = null;
-}
-
-// API URL - always use the production endpoint
+// Configuration
 const API_BASE_URL = 'https://ecfr-analyzer-production-ef73.up.railway.app';
 
+// Navigation Configuration
+const NAV_ITEMS = [
+  { 
+    text: 'Dashboard', 
+    icon: <DashboardIcon />, 
+    path: '/' 
+  },
+  { 
+    text: 'Agencies', 
+    icon: <BusinessIcon />, 
+    path: '/agencies' 
+  },
+  { 
+    text: 'Historical', 
+    icon: <TimelineIcon />, 
+    path: '/historical' 
+  },
+  { 
+    text: 'Search', 
+    icon: <SearchIcon />, 
+    path: '/search' 
+  }
+];
+
+// Logo Loader
+const loadLogo = () => {
+  try {
+    return require('./assets/logo.svg').default;
+  } catch {
+    console.log('Logo not found, using placeholder');
+    return null;
+  }
+};
+
 function App() {
+  // State Management
   const [loading, setLoading] = useState(true);
   const [agenciesData, setAgenciesData] = useState([]);
   const [historicalData, setHistoricalData] = useState([]);
   const [error, setError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [refreshing, setRefreshing] = useState(false);
-  
-  const handleDrawerToggle = () => {
-    setDrawerOpen(!drawerOpen);
-  };
-  
-  const handleDrawerClose = () => {
-    if (isMobile) {
-      setDrawerOpen(false);
-    }
-  };
 
+  // Responsive Design
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const logo = useMemo(loadLogo, []);
+
+  // Data Fetching
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
       setRefreshing(true);
       
-      // Only use the API endpoints with the /api prefix
-      const agenciesEndpoint = `${API_BASE_URL}/api/agencies`;
-      const historicalEndpoint = `${API_BASE_URL}/api/historical`;
+      const [agenciesResponse, historicalResponse] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/agencies`, { 
+          headers: { 'Cache-Control': 'no-cache' } 
+        }),
+        axios.get(`${API_BASE_URL}/api/historical`, { 
+          headers: { 'Cache-Control': 'no-cache' } 
+        })
+      ]);
       
-      const agenciesResponse = await axios.get(agenciesEndpoint, {
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      setAgenciesData(agenciesResponse?.data || []);
+      setHistoricalData(historicalResponse?.data || []);
+    } catch (err) {
+      const errorMessage = err.response 
+        ? `${err.response.status} error` 
+        : err.message || 'Failed to fetch data';
       
-      const historicalResponse = await axios.get(historicalEndpoint, {
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-      
-      // Set the agency data directly from the response
-      if (agenciesResponse && agenciesResponse.data) {
-        setAgenciesData(agenciesResponse.data);
-      } else {
-        setError('Failed to load agency data');
-        setAgenciesData([]);
-      }
-      
-      // Set the historical data directly from the response
-      if (historicalResponse && historicalResponse.data) {
-        setHistoricalData(historicalResponse.data);
-      } else {
-        setError('Failed to load historical data');
-        setHistoricalData([]);
-      }
-    } catch (error) {
-      let errorMessage = 'Failed to fetch data';
-      if (error.response) {
-        errorMessage += `: ${error.response.status} error`;
-      } else if (error.request) {
-        errorMessage += ': No response from server';
-      } else {
-        errorMessage += `: ${error.message}`;
-      }
       setError(errorMessage);
       setAgenciesData([]);
       setHistoricalData([]);
@@ -115,46 +112,27 @@ function App() {
       setRefreshing(false);
     }
   };
-  
+
+  // Initial Data Load
   useEffect(() => {
     fetchData();
   }, []);
-  
-  const handleCloseError = () => {
-    setError(null);
-  };
 
-  const handleRefresh = () => {
-    fetchData();
-  };
-  
-  // Navigation items
-  const navItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-    { text: 'Agencies', icon: <BusinessIcon />, path: '/agencies' },
-    { text: 'Historical', icon: <TimelineIcon />, path: '/historical' },
-    { text: 'Search', icon: <SearchIcon />, path: '/search' }
-  ];
-  
-  // Logo component (either imported or placeholder)
-  const LogoComponent = () => {
-    if (logo) {
-      return (
-        <Box 
-          component="img" 
-          src={logo} 
-          alt="Reticuli Technologies" 
-          sx={{ height: 40 }}
-        />
-      );
-    } else {
-      return <LogoPlaceholder height={40} />;
-    }
-  };
-  
-  // Drawer content
-  const drawer = (
-    <Box sx={{ width: 280 }}>
+  // Event Handlers
+  const handleDrawerToggle = () => setDrawerOpen(!drawerOpen);
+  const handleDrawerClose = () => isMobile && setDrawerOpen(false);
+  const handleCloseError = () => setError(null);
+
+  // Logo Component
+  const LogoComponent = () => (
+    logo 
+      ? <Box component="img" src={logo} alt="Reticuli Technologies" sx={{ height: 40 }} />
+      : <LogoPlaceholder height={40} />
+  );
+
+  // Navigation Drawer Content
+  const renderDrawerContent = () => (
+    <Box sx={{ width: 280, height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
         <LogoComponent />
         {isMobile && (
@@ -164,8 +142,9 @@ function App() {
         )}
       </Box>
       <Divider sx={{ mb: 2 }} />
-      <List>
-        {navItems.map((item) => (
+      
+      <List sx={{ flexGrow: 1 }}>
+        {NAV_ITEMS.map((item) => (
           <ListItem 
             key={item.text} 
             component={NavLink} 
@@ -173,21 +152,34 @@ function App() {
             onClick={handleDrawerClose}
             sx={{
               mb: 1,
-              borderRadius: 2,
               mx: 1,
+              borderRadius: 2,
+              transition: 'all 0.3s ease',
+              '& .MuiListItemIcon-root': {
+                color: 'text.secondary',
+                transition: 'color 0.3s ease',
+              },
+              '& .MuiListItemText-primary': {
+                color: 'text.secondary',
+                transition: 'color 0.3s ease',
+              },
               '&.active': {
                 backgroundColor: 'primary.main',
+                color: 'primary.contrastText',
                 '& .MuiListItemIcon-root': {
-                  color: 'white',
+                  color: 'primary.contrastText',
                 },
                 '& .MuiListItemText-primary': {
-                  color: 'white',
+                  color: 'primary.contrastText',
                   fontWeight: 'bold',
                 },
               },
               '&:hover': {
-                backgroundColor: 'rgba(58, 123, 213, 0.08)',
-              }
+                backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                '& .MuiListItemIcon-root, & .MuiListItemText-primary': {
+                  color: 'primary.main',
+                },
+              },
             }}
           >
             <ListItemIcon sx={{ minWidth: 40 }}>
@@ -197,15 +189,16 @@ function App() {
           </ListItem>
         ))}
       </List>
-      <Box sx={{ position: 'absolute', bottom: 0, width: '100%', p: 2 }}>
-        <Typography variant="caption" color="text.secondary" align="center" sx={{ display: 'block' }}>
-          © 2025 Reticuli Technologies — All Rights Reserved.
+      
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography variant="caption" color="text.secondary">
+          © 2025 Reticuli Technologies
         </Typography>
       </Box>
     </Box>
   );
-  
-  // If we're still loading and have no data
+
+  // Loading State
   if (loading && agenciesData.length === 0) {
     return (
       <ThemeProvider theme={theme}>
@@ -234,8 +227,8 @@ function App() {
       </ThemeProvider>
     );
   }
-  
-  // If we have an error and no data, show error
+
+  // Error State
   if (error && agenciesData.length === 0) {
     return (
       <ThemeProvider theme={theme}>
@@ -284,14 +277,15 @@ function App() {
       </ThemeProvider>
     );
   }
-  
+
+  // Main Application
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
         <ParticlesBackground density={30} />
         <Box sx={{ display: 'flex', minHeight: '100vh', backgroundColor: 'background.default' }}>
-          {/* Drawer for navigation - permanent on desktop, temporary on mobile */}
+          {/* Responsive Drawer */}
           {isMobile ? (
             <Drawer
               variant="temporary"
@@ -306,7 +300,7 @@ function App() {
                 },
               }}
             >
-              {drawer}
+              {renderDrawerContent()}
             </Drawer>
           ) : (
             <Drawer
@@ -323,13 +317,13 @@ function App() {
               }}
               open
             >
-              {drawer}
+              {renderDrawerContent()}
             </Drawer>
           )}
           
-          {/* Main content area */}
+          {/* Main Content Area */}
           <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-            {/* App bar - only visible on mobile for menu toggle */}
+            {/* Mobile App Bar */}
             <AppBar 
               position="sticky" 
               sx={{ 
@@ -356,7 +350,7 @@ function App() {
                 <Tooltip title="Refresh data">
                   <IconButton 
                     color="primary"
-                    onClick={handleRefresh}
+                    onClick={fetchData}
                     disabled={refreshing}
                   >
                     {refreshing ? <CircularProgress size={24} /> : <RefreshIcon />}
@@ -365,7 +359,7 @@ function App() {
               </Toolbar>
             </AppBar>
             
-            {/* Page title bar - visible on desktop */}
+            {/* Desktop Header */}
             <Box 
               sx={{ 
                 display: { xs: 'none', sm: 'flex' }, 
@@ -380,7 +374,7 @@ function App() {
               <Tooltip title="Refresh data">
                 <IconButton 
                   color="primary"
-                  onClick={handleRefresh}
+                  onClick={fetchData}
                   disabled={refreshing}
                   className={refreshing ? '' : 'pulse'}
                 >
@@ -389,7 +383,7 @@ function App() {
               </Tooltip>
             </Box>
             
-            {/* Snackbar for errors */}
+            {/* Error Snackbar */}
             {error && (
               <Snackbar 
                 open={!!error} 
@@ -407,7 +401,7 @@ function App() {
               </Snackbar>
             )}
             
-            {/* Main content */}
+            {/* Main Content */}
             <Container 
               maxWidth="xl" 
               sx={{ 
@@ -453,7 +447,7 @@ function App() {
               }}
             >
               <Typography variant="body2" color="text.secondary">
-                © 2025 Reticuli Technologies — All Rights Reserved.
+                © 2025 Reticuli Technologies — All Rights Reserved
               </Typography>
             </Box>
           </Box>
