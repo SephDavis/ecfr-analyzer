@@ -4,7 +4,7 @@ import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
 import axios from 'axios';
 import { 
   Container, AppBar, Toolbar, Typography, Box, 
-  Paper, Grid, CircularProgress, Alert, Snackbar
+  Paper, Grid, CircularProgress, Alert, Snackbar, Button
 } from '@mui/material';
 import Dashboard from './components/Dashboard';
 import AgencyAnalysis from './components/AgencyAnalysis';
@@ -12,10 +12,11 @@ import HistoricalAnalysis from './components/HistoricalAnalysis';
 import Search from './components/Search';
 import './App.css';
 
-// Allow configuration of API URL via environment variable
-// In development, you might want to use a local URL
-// For production, you'd set this in your deployment environment
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ecfr-analyzer-production-ef73.up.railway.app';
+// API URL - always use the production endpoint
+const API_BASE_URL = 'https://ecfr-analyzer-production-ef73.up.railway.app';
+
+// Log the API URL being used
+console.log('Using API URL:', API_BASE_URL);
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -29,70 +30,57 @@ function App() {
         setLoading(true);
         setError(null);
         
-        // Try both API structures (with and without /api prefix)
-        // This provides backward compatibility
-        const endpoints = [
-          { agencies: `${API_BASE_URL}/api/agencies`, historical: `${API_BASE_URL}/api/historical` },
-          { agencies: `${API_BASE_URL}/agencies`, historical: `${API_BASE_URL}/historical` }
-        ];
+        // Only use the API endpoints with the /api prefix
+        const agenciesEndpoint = `${API_BASE_URL}/api/agencies`;
+        const historicalEndpoint = `${API_BASE_URL}/api/historical`;
         
-        let agenciesResponse = null;
-        let historicalResponse = null;
-        let errorMsg = '';
+        console.log(`Fetching agencies from: ${agenciesEndpoint}`);
+        const agenciesResponse = await axios.get(agenciesEndpoint, {
+          headers: { 'Cache-Control': 'no-cache' }
+        });
         
-        // Try each endpoint set until one works
-        for (const endpoint of endpoints) {
-          try {
-            console.log(`Trying to fetch agencies from: ${endpoint.agencies}`);
-            agenciesResponse = await axios.get(endpoint.agencies);
-            
-            if (agenciesResponse.data) {
-              console.log('AGENCIES:', agenciesResponse.data);
-              
-              // Also try historical endpoint from the same endpoint set
-              console.log(`Trying to fetch historical from: ${endpoint.historical}`);
-              historicalResponse = await axios.get(endpoint.historical);
-              console.log('HISTORICAL:', historicalResponse.data);
-              
-              // If both work, break out of the loop
-              break;
-            }
-          } catch (endpointError) {
-            console.error(`Error with endpoint ${endpoint.agencies}:`, endpointError);
-            errorMsg = endpointError.message;
-            // Continue to next endpoint set
-          }
-        }
+        console.log(`Fetching historical data from: ${historicalEndpoint}`);
+        const historicalResponse = await axios.get(historicalEndpoint, {
+          headers: { 'Cache-Control': 'no-cache' }
+        });
         
-        // If we got agency data
+        // Set the agency data directly from the response
         if (agenciesResponse && agenciesResponse.data) {
-          // Check if data is in .agencies property (direct eCFR API format) or root array
-          setAgenciesData(Array.isArray(agenciesResponse.data) 
-            ? agenciesResponse.data 
-            : agenciesResponse.data.agencies || []);
+          console.log(`Successfully loaded ${agenciesResponse.data.length} agencies`);
+          setAgenciesData(agenciesResponse.data);
         } else {
-          // Fallback to sample data if API failed
-          setAgenciesData(generateSampleAgenciesData());
-          console.warn('Using sample agency data since API request failed');
+          console.error('No agency data received from API');
+          setError('Failed to load agency data');
+          setAgenciesData([]);
         }
         
-        // If we got historical data
+        // Set the historical data directly from the response
         if (historicalResponse && historicalResponse.data) {
-          setHistoricalData(historicalResponse.data || []);
+          console.log(`Successfully loaded ${historicalResponse.data.length} historical records`);
+          setHistoricalData(historicalResponse.data);
         } else {
-          // Fallback to sample data if API failed
-          setHistoricalData(generateSampleHistoricalData());
-          console.warn('Using sample historical data since API request failed');
+          console.error('No historical data received from API');
+          setError('Failed to load historical data');
+          setHistoricalData([]);
         }
         
         setLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
-        setError(`Failed to fetch data: ${error.message}`);
         
-        // Fallback to sample data on error
-        setAgenciesData(generateSampleAgenciesData());
-        setHistoricalData(generateSampleHistoricalData());
+        // Detailed error logging
+        if (error.response) {
+          console.error('Error response:', error.response.data);
+          console.error('Error status:', error.response.status);
+        } else if (error.request) {
+          console.error('Error request:', error.request);
+        } else {
+          console.error('Error message:', error.message);
+        }
+        
+        setError(`Failed to fetch data: ${error.message}`);
+        setAgenciesData([]);
+        setHistoricalData([]);
         setLoading(false);
       }
     };
@@ -100,76 +88,42 @@ function App() {
     fetchData();
   }, []);
   
-  // Generate sample data for development/fallback
-  const generateSampleAgenciesData = () => {
-    const agencies = [];
-    const names = [
-      'Environmental Protection Agency', 
-      'Department of Health and Human Services',
-      'Department of Transportation',
-      'Department of Labor',
-      'Department of Treasury',
-      'Federal Communications Commission',
-      'Federal Trade Commission',
-      'Consumer Financial Protection Bureau',
-      'Securities and Exchange Commission',
-      'Food and Drug Administration'
-    ];
-    
-    for (let i = 0; i < names.length; i++) {
-      const wordCount = Math.floor(Math.random() * 500000) + 100000;
-      const regulationCount = Math.floor(Math.random() * 100) + 10;
-      
-      agencies.push({
-        agencyId: `agency-${i}`,
-        name: names[i],
-        shortName: names[i].split(' ').pop(),
-        displayName: names[i],
-        slug: names[i].toLowerCase().replace(/[^a-z]+/g, '-'),
-        wordCount,
-        regulationCount,
-        lastUpdated: new Date().toISOString(),
-        cfrReferences: []
-      });
-    }
-    
-    return agencies;
-  };
-  
-  const generateSampleHistoricalData = () => {
-    const data = [];
-    const today = new Date();
-    
-    for (let i = 30; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      // Random word count that increases over time
-      const baseCount = 1000000;
-      const randomFactor = 1 + (Math.random() * 0.05 - 0.025); // -2.5% to +2.5%
-      const totalWordCount = Math.round(baseCount * (1 + i/100) * randomFactor);
-      
-      data.push({
-        date: date.toISOString(),
-        totalWordCount,
-        titleCounts: {},
-        agencyCounts: {},
-        changes: i === 0 ? [] : [
-          {
-            entity: 'Sample Agency',
-            entityType: 'agency',
-            wordDifference: Math.floor(Math.random() * 2000 - 1000) // -1000 to +1000
-          }
-        ]
-      });
-    }
-    
-    return data;
-  };
-  
   const handleCloseError = () => {
     setError(null);
   };
+  
+  // If we don't have data yet, show loading
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+        <Typography variant="h6" sx={{ ml: 2 }}>
+          Loading data from API...
+        </Typography>
+      </Box>
+    );
+  }
+  
+  // If we have an error and no data, show error
+  if (error && agenciesData.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', flexDirection: 'column' }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+        <Typography variant="body1">
+          Failed to load data from the API. Please try again later.
+        </Typography>
+        <Button 
+          variant="contained" 
+          sx={{ mt: 2 }}
+          onClick={() => window.location.reload()}
+        >
+          Reload
+        </Button>
+      </Box>
+    );
+  }
   
   return (
     <Router>
@@ -188,44 +142,40 @@ function App() {
           </Toolbar>
         </AppBar>
         
-        <Snackbar 
-          open={!!error} 
-          autoHideDuration={6000} 
-          onClose={handleCloseError}
-          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        >
-          <Alert onClose={handleCloseError} severity="warning" sx={{ width: '100%' }}>
-            {error}
-          </Alert>
-        </Snackbar>
+        {error && (
+          <Snackbar 
+            open={!!error} 
+            autoHideDuration={6000} 
+            onClose={handleCloseError}
+            anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+          >
+            <Alert onClose={handleCloseError} severity="warning" sx={{ width: '100%' }}>
+              {error}
+            </Alert>
+          </Snackbar>
+        )}
         
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <Routes>
-              <Route 
-                path="/" 
-                element={
-                  <Dashboard 
-                    agenciesData={agenciesData} 
-                    historicalData={historicalData} 
-                  />
-                } 
-              />
-              <Route 
-                path="/agencies" 
-                element={<AgencyAnalysis agenciesData={agenciesData} />} 
-              />
-              <Route 
-                path="/historical" 
-                element={<HistoricalAnalysis historicalData={historicalData} />} 
-              />
-              <Route path="/search" element={<Search />} />
-            </Routes>
-          )}
+          <Routes>
+            <Route 
+              path="/" 
+              element={
+                <Dashboard 
+                  agenciesData={agenciesData} 
+                  historicalData={historicalData} 
+                />
+              } 
+            />
+            <Route 
+              path="/agencies" 
+              element={<AgencyAnalysis agenciesData={agenciesData} />} 
+            />
+            <Route 
+              path="/historical" 
+              element={<HistoricalAnalysis historicalData={historicalData} />} 
+            />
+            <Route path="/search" element={<Search />} />
+          </Routes>
         </Container>
       </div>
     </Router>
