@@ -8,20 +8,6 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
-// Function to truncate agency names
-const truncateAgencyName = (name, maxLength = 20) => {
-  if (!name) return '';
-  // For names with Department/Agency, keep only that part
-  if (name.includes('Department of')) {
-    return 'Dept. of ' + name.split('Department of')[1].trim();
-  }
-  if (name.includes('Agency')) {
-    return name.split(' ').slice(-2).join(' ');
-  }
-  // Otherwise truncate
-  return name.length > maxLength ? name.substring(0, maxLength) + '...' : name;
-};
-
 const AgencyAnalysis = ({ agenciesData }) => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -77,8 +63,7 @@ const AgencyAnalysis = ({ agenciesData }) => {
     .sort((a, b) => b.avgWordsPerRegulation - a.avgWordsPerRegulation)
     .slice(0, 5)
     .map(agency => ({
-      name: truncateAgencyName(agency.name, 15),
-      fullName: agency.name,
+      name: agency.name,
       avgWords: agency.avgWordsPerRegulation
     }));
   
@@ -98,24 +83,18 @@ const AgencyAnalysis = ({ agenciesData }) => {
             <ResponsiveContainer width="100%" height="90%">
               <BarChart
                 data={topByAvgWords}
-                margin={{ top: 20, right: 30, left: 20, bottom: 100 }}
+                margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="name" 
                   angle={-45} 
                   textAnchor="end"
-                  height={100}
+                  height={70}
                   interval={0}
                 />
                 <YAxis />
-                <Tooltip 
-                  formatter={(value) => value.toLocaleString()}
-                  labelFormatter={(label) => {
-                    const agency = topByAvgWords.find(a => a.name === label);
-                    return agency ? agency.fullName : label;
-                  }}
-                />
+                <Tooltip formatter={(value) => value.toLocaleString()} />
                 <Legend />
                 <Bar dataKey="avgWords" name="Avg Words per Regulation" fill="#82ca9d" />
               </BarChart>

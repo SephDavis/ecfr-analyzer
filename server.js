@@ -305,94 +305,95 @@ app.get('/historical', async (req, res) => {
 // Cron Job – Daily Sync with eCFR
 //
 
-// Add this near the top of the file, before fetchAndAnalyzeECFR() function
-let isFetching = false;
-
 async function fetchAndAnalyzeECFR() {
   try {
     console.log('🛰️ Fetching and analyzing eCFR data...');
 
-    // Fetch agencies and titles
+    // Fetch agencies
     const agencies = await ecfrService.getAgencies();
+    console.log(`Fetched ${agencies.length} agencies`);
+    
+    // Fetch titles
     const titlesResponse = await ecfrService.getTitles();
+    // Make sure we have an iterable array of titles
     const titles = Array.isArray(titlesResponse) ? titlesResponse : 
                   (titlesResponse?.titles || []);
     
-    console.log(`Fetched ${agencies.length} agencies and ${titles.length} titles`);
+    console.log(`Fetched ${titles.length} titles`);
 
+    // Early exit if we don't have data
     if (titles.length === 0) {
       console.error('No titles returned from API, aborting data analysis');
-      return false;
+      return;
     }
-
-    const latestDate = await ecfrService.getLatestAvailableDate();
-    console.log(`Using latest available date: ${latestDate}`);
 
     let totalWordCount = 0;
     const titleCounts = new Map();
     const agencyCounts = new Map();
 
-    // Process titles in batches to manage memory
-    const BATCH_SIZE = 10;
-    for (let i = 0; i < titles.length; i += BATCH_SIZE) {
-      const batch = titles.slice(i, i + BATCH_SIZE);
-      
-      for (const title of batch) {
-        try {
-          if (!title.number) {
-            console.log(`Skipping title with missing number: ${JSON.stringify(title)}`);
-            continue;
-          }
+    // Get the latest available date from API
+    const latestDate = await ecfrService.getLatestAvailableDate();
+    console.log(`Using latest available date: ${latestDate}`);
 
-          console.log(`Processing title ${title.number}: ${title.name || 'Unnamed'}`);
-          
-          let content;
-          try {
-            content = await ecfrService.getTitleContent(title.number, latestDate);
-          } catch (contentError) {
-            console.error(`Error fetching content for title ${title.number}:`, contentError.message);
-            content = `<TITLE>${title.number}</TITLE><CONTENT>Content temporarily unavailable for title ${title.number}</CONTENT>`;
-          }
-          
-          const wordCount = ecfrService.calculateWordCount(content);
-          titleCounts.set(title.number.toString(), wordCount);
-          totalWordCount += wordCount;
-
-          await Title.findOneAndUpdate(
-            { titleNumber: title.number },
-            {
-              name: title.name || `Title ${title.number}`,
-              wordCount,
-              lastUpdated: new Date()
-            },
-            { upsert: true, new: true }
-          );
-          
-          console.log(`Processed title ${title.number}: ${wordCount} words`);
-        } catch (titleError) {
-          console.error(`Error processing title ${title?.number || 'unknown'}:`, titleError);
+    // Process each title
+    for (const title of titles) {
+      try {
+        // Skip if title doesn't have a valid number
+        if (!title.number) {
+          console.log(`Skipping title with missing number: ${JSON.stringify(title)}`);
+          continue;
         }
-      }
 
-      // Optional: Garbage collection between batches
-      if (global.gc) {
-        global.gc();
+        console.log(`Processing title ${title.number}: ${title.name || 'Unnamed'}`);
+        
+        // Try to get content with the correct date
+        let content;
+        try {
+          // Use the latest available date from API
+          content = await ecfrService.getTitleContent(title.number, latestDate);
+        } catch (contentError) {
+          console.error(`Error fetching content for title ${title.number}:`, contentError.message);
+          content = `<TITLE>${title.number}</TITLE><CONTENT>Content temporarily unavailable for title ${title.number}</CONTENT>`;
+        }
+        
+        // Calculate word count
+        const wordCount = ecfrService.calculateWordCount(content);
+        titleCounts.set(title.number.toString(), wordCount);
+        totalWordCount += wordCount;
+
+        // Update title in database
+        await Title.findOneAndUpdate(
+          { titleNumber: title.number },
+          {
+            name: title.name || `Title ${title.number}`,
+            wordCount,
+            lastUpdated: new Date()
+          },
+          { upsert: true, new: true }
+        );
+        
+        console.log(`Processed title ${title.number}: ${wordCount} words`);
+      } catch (titleError) {
+        console.error(`Error processing title ${title?.number || 'unknown'}:`, titleError);
+        // Continue with next title
       }
     }
 
-    // Process agencies with similar batch-like approach
+    // Process each agency
     for (const agency of agencies) {
       try {
+        let agencyWordCount = 0;
+        let regulationCount = 0;
+
+        // Skip if agency doesn't have a valid slug
         if (!agency.slug) {
           console.log(`Skipping agency with missing slug: ${JSON.stringify(agency)}`);
           continue;
         }
 
-        let agencyWordCount = 0;
-        let regulationCount = 0;
-
         console.log(`Processing agency ${agency.slug}: ${agency.name || 'Unnamed'}`);
 
+        // Process CFR references
         if (Array.isArray(agency.cfr_references)) {
           for (const ref of agency.cfr_references) {
             if (ref && ref.title) {
@@ -405,6 +406,7 @@ async function fetchAndAnalyzeECFR() {
 
         agencyCounts.set(agency.slug, agencyWordCount);
 
+        // Update agency in database
         await Agency.findOneAndUpdate(
           { agencyId: agency.slug },
           {
@@ -420,7 +422,7 @@ async function fetchAndAnalyzeECFR() {
           { upsert: true, new: true }
         );
 
-        // Optional: Process child agencies with similar pattern
+        // Process child agencies
         if (Array.isArray(agency.children)) {
           for (const child of agency.children) {
             if (!child.slug) continue;
@@ -428,6 +430,7 @@ async function fetchAndAnalyzeECFR() {
             let childWordCount = 0;
             let childRegulationCount = 0;
 
+            // Process child CFR references
             if (Array.isArray(child.cfr_references)) {
               for (const ref of child.cfr_references) {
                 if (ref && ref.title) {
@@ -440,6 +443,7 @@ async function fetchAndAnalyzeECFR() {
 
             agencyCounts.set(child.slug, childWordCount);
 
+            // Update child agency in database
             await Agency.findOneAndUpdate(
               { agencyId: child.slug },
               {
@@ -458,10 +462,11 @@ async function fetchAndAnalyzeECFR() {
         }
       } catch (agencyError) {
         console.error(`Error processing agency ${agency?.slug || 'unknown'}:`, agencyError);
+        // Continue with next agency
       }
     }
 
-    // Record historical data (unchanged)
+    // Record historical data
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -475,6 +480,7 @@ async function fetchAndAnalyzeECFR() {
         const changes = [];
 
         if (previous) {
+          // Calculate changes from previous day
           for (const [titleNum, newCount] of titleCounts.entries()) {
             const oldCount = previous.titleCounts?.get?.(titleNum) || 0;
             const delta = newCount - oldCount;
@@ -488,6 +494,7 @@ async function fetchAndAnalyzeECFR() {
           }
         }
 
+        // Create new historical record
         await HistoricalData.create({
           date: today,
           totalWordCount,
@@ -536,7 +543,7 @@ async function forceRefreshData() {
 }
 
 // Cron job: midnight daily
-cron.schedule('0 */4 * * *', fetchAndAnalyzeECFR); // Every 4 hours instead of daily
+cron.schedule('0 0 * * *', fetchAndAnalyzeECFR);
 
 // Add force refresh endpoint
 app.get('/api/force-refresh', async (req, res) => {

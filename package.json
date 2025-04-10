@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "A tool to analyze Federal Regulations from the eCFR",
   "main": "server.js",
-"scripts": {
-  "start": "NODE_OPTIONS=--max_old_space_size=4096 node server.js",
+  "scripts": {
+    "start": "node server.js",
     "server": "nodemon server.js",
     "client": "cd client && npm start",
     "dev": "concurrently \"npm run server\" \"npm run client\"",

@@ -11,31 +11,16 @@ import {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#8dd1e1'];
 
-// Function to truncate agency names
-const truncateAgencyName = (name, maxLength = 20) => {
-  if (!name) return '';
-  // For names with Department/Agency, keep only that part
-  if (name.includes('Department of')) {
-    return 'Dept. of ' + name.split('Department of')[1].trim();
-  }
-  if (name.includes('Agency')) {
-    return name.split(' ').slice(-2).join(' ');
-  }
-  // Otherwise truncate
-  return name.length > maxLength ? name.substring(0, maxLength) + '...' : name;
-};
-
 const Dashboard = ({ agenciesData, historicalData }) => {
   // Calculate total word count
   const totalWordCount = agenciesData.reduce((sum, agency) => sum + agency.wordCount, 0);
   
-  // Get top agencies by word count with truncated names for display
+  // Get top agencies by word count
   const topAgencies = [...agenciesData]
     .sort((a, b) => b.wordCount - a.wordCount)
     .slice(0, 10)
     .map(agency => ({
-      name: truncateAgencyName(agency.name),
-      fullName: agency.name,
+      name: agency.name,
       wordCount: agency.wordCount,
       percentage: (agency.wordCount / totalWordCount * 100).toFixed(1)
     }));
@@ -54,10 +39,9 @@ const Dashboard = ({ agenciesData, historicalData }) => {
       .sort((a, b) => Math.abs(b.wordDifference) - Math.abs(a.wordDifference))
       .slice(0, 5)
       .map(change => {
-        const agency = agenciesData.find(a => a.agencyId === change.entity || a.slug === change.entity) || 
-                      { name: change.entity };
+        const agency = agenciesData.find(a => a.agencyId === change.agencyId) || { name: change.agencyId };
         return {
-          name: truncateAgencyName(agency.name),
+          name: agency.name,
           change: change.wordDifference,
           isIncrease: change.wordDifference > 0
         };
@@ -121,24 +105,18 @@ const Dashboard = ({ agenciesData, historicalData }) => {
             <ResponsiveContainer width="100%" height="90%">
               <BarChart
                 data={topAgencies}
-                margin={{ top: 20, right: 30, left: 20, bottom: 120 }}
+                margin={{ top: 20, right: 30, left: 20, bottom: 70 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="name" 
                   angle={-45} 
                   textAnchor="end"
-                  height={120}
+                  height={70}
                   interval={0}
                 />
                 <YAxis />
-                <Tooltip 
-                  formatter={(value) => value.toLocaleString()}
-                  labelFormatter={(label) => {
-                    const agency = topAgencies.find(a => a.name === label);
-                    return agency ? agency.fullName : label;
-                  }}
-                />
+                <Tooltip formatter={(value) => value.toLocaleString()} />
                 <Legend />
                 <Bar dataKey="wordCount" name="Word Count" fill="#8884d8" />
               </BarChart>
@@ -158,8 +136,8 @@ const Dashboard = ({ agenciesData, historicalData }) => {
                   data={topAgencies}
                   cx="50%"
                   cy="50%"
-                  labelLine={true}
-                  label={({ name, percentage }) => `${percentage}%`}
+                  labelLine={false}
+                  label={({ name, percentage }) => `${name}: ${percentage}%`}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="wordCount"
@@ -168,14 +146,7 @@ const Dashboard = ({ agenciesData, historicalData }) => {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
-                  formatter={(value) => value.toLocaleString()}
-                  labelFormatter={(label) => {
-                    const agency = topAgencies.find(a => a.name === label);
-                    return agency ? agency.fullName : label;
-                  }}
-                />
-                <Legend />
+                <Tooltip formatter={(value) => value.toLocaleString()} />
               </PieChart>
             </ResponsiveContainer>
           </Paper>
@@ -193,10 +164,7 @@ const Dashboard = ({ agenciesData, historicalData }) => {
                 margin={{ top: 20, right: 30, left: 20, bottom: 10 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="date"
-                  interval={Math.ceil(historicalChartData.length / 12)} 
-                />
+                <XAxis dataKey="date" />
                 <YAxis />
                 <Tooltip formatter={(value) => value.toLocaleString()} />
                 <Legend />
