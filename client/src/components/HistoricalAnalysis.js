@@ -3,18 +3,28 @@ import React, { useState, useMemo } from 'react';
 import { 
   Grid, Paper, Typography, Box, 
   FormControl, InputLabel, Select, MenuItem,
-  Card, CardContent
+  Card, CardContent, useTheme, alpha,
+  ToggleButtonGroup, ToggleButton,
+  Chip, Divider, CircularProgress
 } from '@mui/material';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area, BarChart, Bar
-} from 'recharts';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+// Import icons
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import SpeedIcon from '@mui/icons-material/Speed';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import DonutLargeIcon from '@mui/icons-material/DonutLarge';
+
+// Import custom components
+import FuturisticChart from './FuturisticChart';
 
 const HistoricalAnalysis = ({ historicalData }) => {
+  const theme = useTheme();
   const [timeframe, setTimeframe] = useState('all');
-  const [viewType, setViewType] = useState('line');
+  const [viewType, setViewType] = useState('area');
   
   // Process historical data based on selected timeframe
   const processedData = useMemo(() => {
@@ -51,10 +61,10 @@ const HistoricalAnalysis = ({ historicalData }) => {
     return filteredData.map(record => ({
       date: new Date(record.date).toLocaleDateString(),
       wordCount: record.totalWordCount,
-      changeRate: record.changes.reduce(
+      changeRate: record.changes?.reduce(
         (sum, change) => sum + Math.abs(change.wordDifference), 
         0
-      )
+      ) || 0
     }));
   }, [historicalData, timeframe]);
   
@@ -63,196 +73,410 @@ const HistoricalAnalysis = ({ historicalData }) => {
     if (processedData.length === 0) return { 
       totalChange: 0, 
       avgChange: 0,
-      maxChange: 0
+      maxChange: 0,
+      percentChange: 0
     };
     
     const firstRecord = processedData[0];
     const lastRecord = processedData[processedData.length - 1];
     const totalChange = lastRecord.wordCount - firstRecord.wordCount;
+    const percentChange = firstRecord.wordCount > 0 
+      ? (totalChange / firstRecord.wordCount) * 100 
+      : 0;
     
-    const changeRates = processedData.map(record => record.changeRate);
-    const avgChange = changeRates.reduce((sum, rate) => sum + rate, 0) / changeRates.length;
-    const maxChange = Math.max(...changeRates);
+    const changeRates = processedData.map(record => record.changeRate).filter(rate => !isNaN(rate));
+    const avgChange = changeRates.length > 0 
+      ? changeRates.reduce((sum, rate) => sum + rate, 0) / changeRates.length 
+      : 0;
+    const maxChange = changeRates.length > 0 
+      ? Math.max(...changeRates) 
+      : 0;
     
     return {
       totalChange,
       avgChange: Math.round(avgChange),
-      maxChange
+      maxChange,
+      percentChange
     };
   }, [processedData]);
   
+  // Handle chart type change
+  const handleChartTypeChange = (event, newType) => {
+    if (newType !== null) {
+      setViewType(newType);
+    }
+  };
+  
+  // Handle timeframe change
+  const handleTimeframeChange = (event) => {
+    setTimeframe(event.target.value);
+  };
+  
   return (
-    <Box sx={{ flexGrow: 1, py: 3 }}>
-      <Typography variant="h4" gutterBottom component="div">
-        Historical Analysis
-      </Typography>
+    <Box>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 0.5 }}>
+          Historical Analysis
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Track the evolution of federal regulations over time
+        </Typography>
+      </Box>
       
       {/* Controls */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth>
-            <InputLabel>Timeframe</InputLabel>
-            <Select
-              value={timeframe}
-              label="Timeframe"
-              onChange={(e) => setTimeframe(e.target.value)}
+        <Grid item xs={12} md={6} lg={8}>
+          <Card 
+            sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'stretch', sm: 'center' },
+              justifyContent: 'space-between',
+              p: 2,
+              gap: 2
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <CalendarTodayIcon color="primary" sx={{ mr: 1 }} />
+              <Typography variant="subtitle1" fontWeight="medium">
+                Timeframe:
+              </Typography>
+            </Box>
+            <FormControl 
+              size="small" 
+              sx={{ 
+                minWidth: { xs: '100%', sm: 200 },
+                backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                borderRadius: 1
+              }}
             >
-              <MenuItem value="all">All Time</MenuItem>
-              <MenuItem value="year">Last Year</MenuItem>
-              <MenuItem value="quarter">Last Quarter</MenuItem>
-              <MenuItem value="month">Last Month</MenuItem>
-            </Select>
-          </FormControl>
+              <Select
+                value={timeframe}
+                onChange={handleTimeframeChange}
+                displayEmpty
+                variant="outlined"
+              >
+                <MenuItem value="all">All Time</MenuItem>
+                <MenuItem value="year">Last Year</MenuItem>
+                <MenuItem value="quarter">Last Quarter</MenuItem>
+                <MenuItem value="month">Last Month</MenuItem>
+              </Select>
+            </FormControl>
+          </Card>
         </Grid>
-        <Grid item xs={12} sm={6}>
-          <FormControl fullWidth>
-            <InputLabel>Chart Type</InputLabel>
-            <Select
+        <Grid item xs={12} md={6} lg={4}>
+          <Card 
+            sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'stretch', sm: 'center' },
+              justifyContent: 'space-between',
+              p: 2,
+              gap: 2
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <ShowChartIcon color="primary" sx={{ mr: 1 }} />
+              <Typography variant="subtitle1" fontWeight="medium">
+                Chart Type:
+              </Typography>
+            </Box>
+            <ToggleButtonGroup
               value={viewType}
-              label="Chart Type"
-              onChange={(e) => setViewType(e.target.value)}
+              exclusive
+              onChange={handleChartTypeChange}
+              aria-label="chart type"
+              size="small"
+              sx={{ 
+                backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                '& .MuiToggleButton-root': {
+                  border: 'none',
+                  px: 1.5
+                }
+              }}
             >
-              <MenuItem value="line">Line Chart</MenuItem>
-              <MenuItem value="area">Area Chart</MenuItem>
-              <MenuItem value="bar">Bar Chart</MenuItem>
-            </Select>
-          </FormControl>
+              <ToggleButton value="area" aria-label="area chart">
+                <TimelineIcon />
+              </ToggleButton>
+              <ToggleButton value="line" aria-label="line chart">
+                <ShowChartIcon />
+              </ToggleButton>
+              <ToggleButton value="bar" aria-label="bar chart">
+                <BarChartIcon />
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Card>
         </Grid>
       </Grid>
       
       {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={4}>
-          <Card>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ 
+            height: '100%',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.15)} 100%)`,
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'transform 0.3s ease-in-out',
+            '&:hover': {
+              transform: 'translateY(-4px)'
+            }
+          }}>
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: -30, 
+                right: -30, 
+                opacity: 0.1,
+                transform: 'rotate(15deg)'
+              }}
+            >
+              <TrendingUpIcon sx={{ fontSize: 140 }} />
+            </Box>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Total Change in Words
-              </Typography>
-              <Typography variant="h4" component="div" color={summaryMetrics.totalChange >= 0 ? 'error' : 'success'}>
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="overline" color="primary.main" fontWeight="bold">
+                  TOTAL CHANGE IN WORDS
+                </Typography>
+              </Box>
+              <Typography 
+                variant="h3" 
+                component="div" 
+                fontWeight="bold"
+                color={summaryMetrics.totalChange >= 0 ? 'error.main' : 'success.main'}
+              >
                 {summaryMetrics.totalChange >= 0 ? '+' : ''}{summaryMetrics.totalChange.toLocaleString()}
               </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+                {summaryMetrics.percentChange > 0 ? (
+                  <TrendingUpIcon color="error" fontSize="small" sx={{ mr: 0.5 }} />
+                ) : (
+                  <TrendingDownIcon color="success" fontSize="small" sx={{ mr: 0.5 }} />
+                )}
+                <Typography 
+                  variant="body2" 
+                  color={summaryMetrics.percentChange > 0 ? "error" : "success"}
+                >
+                  {Math.abs(summaryMetrics.percentChange).toFixed(2)}% {summaryMetrics.percentChange > 0 ? "increase" : "decrease"}
+                </Typography>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ 
+            height: '100%',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.15)} 100%)`,
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'transform 0.3s ease-in-out',
+            '&:hover': {
+              transform: 'translateY(-4px)'
+            }
+          }}>
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: -30, 
+                right: -30, 
+                opacity: 0.1,
+                transform: 'rotate(15deg)'
+              }}
+            >
+              <SpeedIcon sx={{ fontSize: 140 }} />
+            </Box>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Average Change Rate
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="overline" color="secondary.main" fontWeight="bold">
+                  AVERAGE CHANGE RATE
+                </Typography>
+              </Box>
+              <Typography variant="h3" component="div" fontWeight="bold">
+                {summaryMetrics.avgChange.toLocaleString()}
               </Typography>
-              <Typography variant="h4" component="div">
-                {summaryMetrics.avgChange.toLocaleString()} words/day
-              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  words per day on average
+                </Typography>
+              </Box>
+              <Chip 
+                label={`~${Math.round(summaryMetrics.avgChange * 365 / 1000)}K words per year`} 
+                color="secondary" 
+                variant="outlined" 
+                size="small" 
+                sx={{ mt: 1, fontSize: '0.75rem' }}
+              />
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={4}>
-          <Card>
+        <Grid item xs={12} sm={6} md={4}>
+          <Card sx={{ 
+            height: '100%',
+            background: `linear-gradient(135deg, ${alpha(theme.palette.chart[2], 0.05)} 0%, ${alpha(theme.palette.chart[2], 0.15)} 100%)`,
+            position: 'relative',
+            overflow: 'hidden',
+            transition: 'transform 0.3s ease-in-out',
+            '&:hover': {
+              transform: 'translateY(-4px)'
+            }
+          }}>
+            <Box 
+              sx={{ 
+                position: 'absolute', 
+                top: -30, 
+                right: -30, 
+                opacity: 0.1,
+                transform: 'rotate(15deg)'
+              }}
+            >
+              <ShowChartIcon sx={{ fontSize: 140 }} />
+            </Box>
             <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Maximum Daily Change
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="overline" sx={{ color: theme.palette.chart[2] }} fontWeight="bold">
+                  MAXIMUM DAILY CHANGE
+                </Typography>
+              </Box>
+              <Typography variant="h3" component="div" fontWeight="bold">
+                {summaryMetrics.maxChange.toLocaleString()}
               </Typography>
-              <Typography variant="h4" component="div">
-                {summaryMetrics.maxChange.toLocaleString()} words
-              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  words in a single day
+                </Typography>
+              </Box>
+              <Chip 
+                label="Peak regulatory activity" 
+                sx={{ 
+                  mt: 1, 
+                  fontSize: '0.75rem',
+                  backgroundColor: alpha(theme.palette.chart[2], 0.2),
+                  color: theme.palette.chart[2],
+                  borderColor: theme.palette.chart[2]
+                }} 
+                variant="outlined" 
+                size="small" 
+              />
             </CardContent>
           </Card>
         </Grid>
       </Grid>
       
       {/* Main Chart */}
-      <Paper sx={{ p: 2, height: 500 }}>
-        <Typography variant="h6" gutterBottom>
-          Regulation Word Count Over Time
-        </Typography>
-        <ResponsiveContainer width="100%" height="90%">
-          {viewType === 'line' && (
-            <LineChart
-              data={processedData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
-                angle={-45} 
-                textAnchor="end"
-                height={60}
-                interval={Math.ceil(processedData.length / 15)}
-              />
-              <YAxis />
-              <Tooltip formatter={(value) => value.toLocaleString()} />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="wordCount" 
-                stroke="#8884d8" 
-                name="Total Word Count"
-                activeDot={{ r: 8 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="changeRate" 
-                stroke="#82ca9d" 
-                name="Change Rate"
-              />
-            </LineChart>
-          )}
-          
-          {viewType === 'area' && (
-            <AreaChart
-              data={processedData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
-                angle={-45} 
-                textAnchor="end"
-                height={60}
-                interval={Math.ceil(processedData.length / 15)}
-              />
-              <YAxis />
-              <Tooltip formatter={(value) => value.toLocaleString()} />
-              <Legend />
-              <Area 
-                type="monotone" 
-                dataKey="wordCount" 
-                fill="#8884d8" 
-                stroke="#8884d8"
-                name="Total Word Count"
-              />
-              <Area 
-                type="monotone" 
-                dataKey="changeRate" 
-                fill="#82ca9d" 
-                stroke="#82ca9d"
-                name="Change Rate"
-              />
-            </AreaChart>
-          )}
-          
-          {viewType === 'bar' && (
-            <BarChart
-              data={processedData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
-                angle={-45} 
-                textAnchor="end" 
-                height={60}
-                interval={Math.ceil(processedData.length / 15)}
-              />
-              <YAxis />
-              <Tooltip formatter={(value) => value.toLocaleString()} />
-              <Legend />
-              <Bar dataKey="wordCount" name="Total Word Count" fill="#8884d8" />
-              <Bar dataKey="changeRate" name="Change Rate" fill="#82ca9d" />
-            </BarChart>
-          )}
-        </ResponsiveContainer>
-      </Paper>
+      <FuturisticChart
+        type={viewType}
+        data={processedData}
+        dataKey="wordCount"
+        secondaryDataKey="changeRate"
+        nameKey="date"
+        height={500}
+        title="Regulation Growth Over Time"
+        subtitle="Historical tracking of total word count and change rate"
+        rotateLabels={processedData.length > 10}
+        fillGradient={true}
+        loading={historicalData.length === 0}
+        noDataMessage="No historical data is available for analysis."
+        colors={[theme.palette.primary.main, theme.palette.secondary.main]}
+      />
+      
+      {/* Data Analysis Section */}
+      <Grid container spacing={3} sx={{ mt: 4 }}>
+        <Grid item xs={12}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight="bold">
+              Regulatory Trends Analysis
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Historical analysis of federal regulation growth patterns
+            </Typography>
+            
+            <Divider sx={{ my: 2 }} />
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Key Insights
+                  </Typography>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="body2" paragraph>
+                      The federal regulatory framework has {summaryMetrics.totalChange > 0 ? 'expanded' : 'contracted'} by{' '}
+                      <Box component="span" sx={{ color: summaryMetrics.totalChange > 0 ? 'error.main' : 'success.main', fontWeight: 'bold' }}>
+                        {Math.abs(summaryMetrics.totalChange).toLocaleString()} words
+                      </Box>{' '}
+                      during the analyzed period, representing a{' '}
+                      <Box component="span" sx={{ color: summaryMetrics.percentChange > 0 ? 'error.main' : 'success.main', fontWeight: 'bold' }}>
+                        {Math.abs(summaryMetrics.percentChange).toFixed(2)}%
+                      </Box>{' '}
+                      {summaryMetrics.percentChange > 0 ? 'increase' : 'decrease'}.
+                    </Typography>
+                    
+                    <Typography variant="body2" paragraph>
+                      The data shows an average daily change rate of {summaryMetrics.avgChange.toLocaleString()} words,
+                      projecting to approximately {Math.round(summaryMetrics.avgChange * 365).toLocaleString()} words per year.
+                    </Typography>
+                    
+                    {processedData.length >= 2 && (
+                      <Typography variant="body2">
+                        The highest single-day change was {summaryMetrics.maxChange.toLocaleString()} words,
+                        which is {Math.round((summaryMetrics.maxChange / summaryMetrics.avgChange) * 100)}% higher than the average daily change.
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box>
+                  <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
+                    Growth Projection
+                  </Typography>
+                  
+                  {processedData.length >= 2 ? (
+                    <Box sx={{ mt: 2 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Annual growth rate:
+                        </Typography>
+                        <Typography variant="body2" fontWeight="medium">
+                          {Math.abs(summaryMetrics.percentChange).toFixed(2)}%
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Projected in 1 year:
+                        </Typography>
+                        <Typography variant="body2" fontWeight="medium">
+                          {processedData.length > 0 
+                            ? Math.round(processedData[processedData.length - 1].wordCount * (1 + (summaryMetrics.percentChange / 100))).toLocaleString()
+                            : 'N/A'} words
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Projected in 5 years:
+                        </Typography>
+                        <Typography variant="body2" fontWeight="medium">
+                          {processedData.length > 0 
+                            ? Math.round(processedData[processedData.length - 1].wordCount * Math.pow((1 + (summaryMetrics.percentChange / 100)), 5)).toLocaleString()
+                            : 'N/A'} words
+                        </Typography>
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 100 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Insufficient data for growth projection
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+      </Grid>
     </Box>
   );
 };
