@@ -53,6 +53,8 @@ const theme = createTheme({
     background: colors.background,
     text: colors.text,
     action: colors.action,
+    // Add the chart colors to the palette
+    chart: colors.chart
   },
   typography: {
     fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
