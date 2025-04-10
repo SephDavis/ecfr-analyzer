@@ -1248,25 +1248,36 @@ const AgencyAnalysis = ({ agenciesData }) => {
                     }
                   }} />} 
                 />
-                <defs>
-                  <linearGradient id={complexityGradientId} x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={theme.palette.secondary.dark} stopOpacity={0.8} />
-                    <stop offset="100%" stopColor={theme.palette.secondary.main} stopOpacity={1} />
-                  </linearGradient>
-                </defs>
-                <Bar 
-                  dataKey="avgWords" 
-                  name="Avg Words per Regulation" 
-                  fill={`url(#${complexityGradientId})`}
-                  radius={[0, 4, 4, 0]}
-                  cursor="pointer"
-                  onClick={(data) => {
-                    const agency = topByAvgWords.find(a => a.name === data.name);
-                    if (agency) {
-                      handleAgencySelect(agency);
-                    }
-                  }}
-                />
+                // And replace it with this approach:
+<defs>
+  {topByAvgWords.map((entry, index) => (
+    <linearGradient 
+      key={`gradient-${index}`} 
+      id={`complexityGradient-${index}`} 
+      x1="0" 
+      y1="0" 
+      x2="1" 
+      y2="0"
+    >
+      <stop offset="0%" stopColor={theme.palette.secondary.dark} stopOpacity={0.8} />
+      <stop offset="100%" stopColor={theme.palette.secondary.main} stopOpacity={1} />
+    </linearGradient>
+  ))}
+</defs>
+<Bar 
+  dataKey="avgWords" 
+  name="Avg Words per Regulation" 
+  // Use a fill function to apply specific gradient to each bar
+  fill={(entry, index) => `url(#complexityGradient-${index})`}
+  radius={[0, 4, 4, 0]}
+  cursor="pointer"
+  onClick={(data) => {
+    const agency = topByAvgWords.find(a => a.name === data.name);
+    if (agency) {
+      handleAgencySelect(agency);
+    }
+  }}
+/>
               </BarChart>
             </ResponsiveContainer>
           </Paper>
