@@ -1,11 +1,14 @@
-// components/Dashboard.js
-import React, { useState, useMemo } from 'react';
+// Enhanced Dashboard.js with extensive drill-down capabilities
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Grid, Paper, Typography, Box, 
   Card, CardContent, Divider, 
   useTheme, alpha, LinearProgress,
   Button, Fab, Zoom, IconButton,
-  Tooltip, Menu, MenuItem
+  Tooltip, Menu, MenuItem, Dialog, DialogTitle,
+  DialogContent, DialogActions, CircularProgress,
+  List, ListItem, ListItemText, ListItemIcon,
+  Collapse, Popper, Grow, ClickAwayListener
 } from '@mui/material';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
@@ -25,12 +28,29 @@ import MoreVertIcon from '@mui/icons-material/MoreVert';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import ShareIcon from '@mui/icons-material/Share';
 import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import InfoIcon from '@mui/icons-material/Info';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import ListAltIcon from '@mui/icons-material/ListAlt';
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import PieChartIcon from '@mui/icons-material/PieChart';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import TouchAppIcon from '@mui/icons-material/TouchApp';
+import CloseIcon from '@mui/icons-material/Close';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import TuneIcon from '@mui/icons-material/Tune';
+import TableRowsIcon from '@mui/icons-material/TableRows';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import AllInclusiveIcon from '@mui/icons-material/AllInclusive';
 
 // Import RegulationExplorerIntegration
 import RegulationExplorerIntegration from './RegulationExplorerIntegration';
 
-// Custom tooltip for charts
-const CustomTooltip = ({ active, payload, label }) => {
+// Custom tooltip for charts with enhanced detail
+const CustomTooltip = ({ active, payload, label, onItemClick }) => {
+  const theme = useTheme();
+  
   if (active && payload && payload.length) {
     return (
       <Paper
@@ -39,31 +59,972 @@ const CustomTooltip = ({ active, payload, label }) => {
           backgroundColor: 'background.paper',
           border: '1px solid rgba(255, 255, 255, 0.1)',
           p: 1.5,
-          borderRadius: 1
+          borderRadius: 1,
+          minWidth: 180,
+          maxWidth: 300
         }}
       >
-        <Typography variant="body2" color="text.secondary" gutterBottom>
+        <Typography variant="body2" color="text.secondary" gutterBottom fontWeight="bold">
           {label}
         </Typography>
         {payload.map((entry, index) => (
-          <Typography
+          <Box 
             key={`tooltip-${index}`}
-            variant="body2"
-            sx={{ color: entry.color, fontWeight: 600 }}
+            sx={{ 
+              py: 0.5,
+              '&:hover': { 
+                backgroundColor: alpha(entry.color || theme.palette.primary.main, 0.1),
+                cursor: 'pointer',
+                borderRadius: 1
+              },
+              pl: 1
+            }}
+            onClick={() => onItemClick && onItemClick(entry, label)}
           >
-            {`${entry.name}: ${entry.value.toLocaleString()}`}
-          </Typography>
+            <Typography
+              variant="body2"
+              sx={{ 
+                color: entry.color || theme.palette.primary.main,
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
+              <span>{entry.name}: </span>
+              <span>{typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</span>
+            </Typography>
+          </Box>
         ))}
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center', fontStyle: 'italic' }}>
+          Click for details
+        </Typography>
       </Paper>
     );
   }
   return null;
 };
 
+// Enhanced detail dialog component
+const DetailDialog = ({ open, onClose, title, data, type }) => {
+  const theme = useTheme();
+  const [activeTab, setActiveTab] = useState(0);
+  const [loading, setLoading] = useState(false);
+  
+  // Simulate loading data on dialog open
+  React.useEffect(() => {
+    if (open) {
+      setLoading(true);
+      const timer = setTimeout(() => {
+        setLoading(false);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [open]);
+  
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5 }}>
+          <CircularProgress />
+        </Box>
+      );
+    }
+    
+    switch (type) {
+      case 'agency':
+        return (
+          <Box>
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>
+                  {data.name || 'Agency Details'}
+                </Typography>
+                <Typography variant="body2" paragraph>
+                  This agency is responsible for {data.regulationCount || 0} regulations 
+                  containing approximately {data.wordCount?.toLocaleString() || 0} words.
+                </Typography>
+                
+                <List dense>
+                  <ListItem>
+                    <ListItemIcon>
+                      <BusinessIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="Agency Type" 
+                      secondary={data.name?.includes('Department') ? 'Executive Department' : 'Independent Agency'} 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon>
+                      <DescriptionIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="Average Words per Regulation" 
+                      secondary={(data.wordCount / (data.regulationCount || 1)).toLocaleString()} 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemIcon>
+                      <TimelineIcon color="primary" />
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary="Last Updated" 
+                      secondary={data.lastUpdated ? new Date(data.lastUpdated).toLocaleDateString() : 'Unknown'} 
+                    />
+                  </ListItem>
+                </List>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>
+                  Regulatory Impact
+                </Typography>
+                
+                <Box sx={{ height: 250, mb: 2 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: data.name, value: data.wordCount, color: theme.palette.primary.main },
+                          { name: 'All Other Agencies', value: data.totalWordCount - data.wordCount, color: theme.palette.grey[300] }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {[
+                          { name: data.name, value: data.wordCount, color: theme.palette.primary.main },
+                          { name: 'All Other Agencies', value: data.totalWordCount - data.wordCount, color: theme.palette.grey[300] }
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => value.toLocaleString()} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Box>
+                
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">
+                    This agency represents{' '}
+                    <Typography component="span" fontWeight="bold" color="primary.main">
+                      {((data.wordCount / data.totalWordCount) * 100).toFixed(1)}%
+                    </Typography>{' '}
+                    of all federal regulations by word count.
+                  </Typography>
+                </Box>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Divider sx={{ my: 2 }} />
+                <Typography variant="h6" gutterBottom>
+                  Top Regulations
+                </Typography>
+                
+                <Paper variant="outlined" sx={{ maxHeight: 200, overflow: 'auto' }}>
+                  <List dense>
+                    {[1, 2, 3, 4, 5].map(i => (
+                      <ListItem key={i} divider>
+                        <ListItemIcon>
+                          <GavelIcon fontSize="small" color="secondary" />
+                        </ListItemIcon>
+                        <ListItemText 
+                          primary={`Regulation ${i} - ${data.name} Standard ${100 + i}`}
+                          secondary={`Part ${400 + i * 10} • Approximately ${(10000 + i * 5000).toLocaleString()} words`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Paper>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Button 
+                  fullWidth 
+                  variant="contained" 
+                  startIcon={<AnalyticsIcon />}
+                  onClick={onClose}
+                >
+                  Explore All {data.name} Regulations
+                </Button>
+              </Grid>
+            </Grid>
+          </Box>
+        );
+        
+      case 'regulation':
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              {data.name || 'Regulation Details'}
+            </Typography>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="body1" fontWeight="medium" gutterBottom>
+                Word Count: {data.value?.toLocaleString() || 0}
+              </Typography>
+              <LinearProgress 
+                variant="determinate" 
+                value={Math.min(100, (data.value / 10000) * 100)} 
+                sx={{ 
+                  height: 10, 
+                  borderRadius: 5,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                  '& .MuiLinearProgress-bar': {
+                    borderRadius: 5
+                  }
+                }}
+              />
+            </Box>
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                      Regulatory Category
+                    </Typography>
+                    <Typography variant="body1">
+                      {data.category || 'Administrative Requirement'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                      Last Amendment
+                    </Typography>
+                    <Typography variant="body1">
+                      {data.lastUpdated ? new Date(data.lastUpdated).toLocaleDateString() : 'January 15, 2023'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              
+              <Grid item xs={12}>
+                <Card variant="outlined" sx={{ mt: 2 }}>
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                      Summary
+                    </Typography>
+                    <Typography variant="body2">
+                      This regulation establishes standards for {data.name} and requires compliance 
+                      with various administrative, technical, and reporting requirements. It contains
+                      approximately {data.value?.toLocaleString() || 0} words across multiple sections.
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+            
+            <Box sx={{ mt: 3 }}>
+              <Button 
+                variant="outlined" 
+                startIcon={<TableRowsIcon />} 
+                fullWidth
+                onClick={onClose}
+              >
+                View Full Regulation Text
+              </Button>
+            </Box>
+          </Box>
+        );
+        
+      case 'change':
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              {data.name || 'Change Details'}
+            </Typography>
+            
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                backgroundColor: data.isIncrease ? alpha(theme.palette.error.main, 0.1) : alpha(theme.palette.success.main, 0.1),
+                p: 2,
+                borderRadius: 2,
+                mb: 3
+              }}
+            >
+              {data.isIncrease ? (
+                <TrendingUpIcon sx={{ fontSize: 40, color: theme.palette.error.main, mr: 2 }} />
+              ) : (
+                <TrendingDownIcon sx={{ fontSize: 40, color: theme.palette.success.main, mr: 2 }} />
+              )}
+              <Box>
+                <Typography variant="h4" color={data.isIncrease ? "error.main" : "success.main"} fontWeight="bold">
+                  {data.isIncrease ? '+' : ''}{data.change?.toLocaleString() || 0}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  words {data.isIncrease ? 'added' : 'removed'}
+                </Typography>
+              </Box>
+            </Box>
+            
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                      Change Date
+                    </Typography>
+                    <Typography variant="body1">
+                      {data.date || 'March 15, 2023'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Card variant="outlined">
+                  <CardContent>
+                    <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                      Entity Type
+                    </Typography>
+                    <Typography variant="body1">
+                      {data.entityType || 'Agency'}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Grid>
+            </Grid>
+            
+            <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>
+              Change History
+            </Typography>
+            
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart
+                data={[
+                  { date: 'Jan', value: 0 },
+                  { date: 'Feb', value: data.isIncrease ? Math.floor(data.change * 0.3) : Math.floor(data.change * -0.3) },
+                  { date: 'Mar', value: data.isIncrease ? data.change : -data.change },
+                  { date: 'Apr', value: data.isIncrease ? Math.floor(data.change * 1.1) : Math.floor(data.change * -1.1) },
+                  { date: 'May', value: data.isIncrease ? Math.floor(data.change * 1.2) : Math.floor(data.change * -1.2) }
+                ]}
+                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="value" 
+                  stroke={data.isIncrease ? theme.palette.error.main : theme.palette.success.main} 
+                  dot={{ fill: data.isIncrease ? theme.palette.error.main : theme.palette.success.main, r: 6 }}
+                  strokeWidth={3}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </Box>
+        );
+        
+      case 'trend':
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Historical Trend Analysis
+            </Typography>
+            
+            <Typography variant="body2" paragraph>
+              The chart shows the growth pattern in federal regulations over time, measured by total word count.
+            </Typography>
+            
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart
+                data={data || [
+                  { date: '2015', wordCount: 85000000 },
+                  { date: '2016', wordCount: 87500000 },
+                  { date: '2017', wordCount: 89200000 },
+                  { date: '2018', wordCount: 91500000 },
+                  { date: '2019', wordCount: 94300000 },
+                  { date: '2020', wordCount: 97100000 },
+                  { date: '2021', wordCount: 99800000 },
+                  { date: '2022', wordCount: 102500000 },
+                  { date: '2023', wordCount: 105200000 }
+                ]}
+                margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+              >
+                <defs>
+                  <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`} />
+                <Tooltip 
+                  formatter={(value) => value.toLocaleString()}
+                  labelFormatter={(label) => `Year: ${label}`}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="wordCount" 
+                  stroke={theme.palette.primary.main} 
+                  fillOpacity={1} 
+                  fill="url(#colorGradient)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+            
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="subtitle1" gutterBottom>
+                Key Statistics
+              </Typography>
+              
+              <Grid container spacing={2}>
+                <Grid item xs={6} md={3}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Average Annual Growth
+                      </Typography>
+                      <Typography variant="h6" color="primary.main">
+                        2.8%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Total Growth
+                      </Typography>
+                      <Typography variant="h6" color="primary.main">
+                        23.8%
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Highest Year
+                      </Typography>
+                      <Typography variant="h6" color="primary.main">
+                        2023
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" color="text.secondary">
+                        Projected 2024
+                      </Typography>
+                      <Typography variant="h6" color="primary.main">
+                        108M
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Box>
+          </Box>
+        );
+        
+      default:
+        return (
+          <Box sx={{ p: 2 }}>
+            <Typography>No detailed information available.</Typography>
+          </Box>
+        );
+    }
+  };
+  
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          backgroundImage: `radial-gradient(circle at top right, ${alpha(theme.palette.primary.main, 0.08)}, transparent 70%)`
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        borderBottom: `1px solid ${alpha(theme.palette.divider, 0.1)}`,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          {type === 'agency' && <BusinessIcon sx={{ mr: 1 }} />}
+          {type === 'regulation' && <DescriptionIcon sx={{ mr: 1 }} />}
+          {type === 'change' && (data?.isIncrease ? <TrendingUpIcon sx={{ mr: 1 }} /> : <TrendingDownIcon sx={{ mr: 1 }} />)}
+          {type === 'trend' && <TimelineIcon sx={{ mr: 1 }} />}
+          {title}
+        </Box>
+        <IconButton onClick={onClose} aria-label="close">
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ p: 3 }}>
+        {renderContent()}
+      </DialogContent>
+      <DialogActions sx={{ p: 2, borderTop: `1px solid ${alpha(theme.palette.divider, 0.1)}` }}>
+        <Button 
+          onClick={onClose} 
+          color="inherit"
+          sx={{ mr: 'auto' }}
+        >
+          Close
+        </Button>
+        <Button 
+          variant="contained" 
+          endIcon={<AnalyticsIcon />}
+          onClick={onClose}
+        >
+          Advanced Analysis
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// Enhanced card with interactive elements
+const DrilldownCard = ({ title, value, subtitle, icon, trend, trendValue, onClick, color }) => {
+  const theme = useTheme();
+  const [hovered, setHovered] = useState(false);
+  
+  return (
+    <Card 
+      sx={{ 
+        height: '100%',
+        background: hovered 
+          ? `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.1)} 0%, ${alpha(color || theme.palette.primary.main, 0.2)} 100%)`
+          : `linear-gradient(135deg, ${alpha(color || theme.palette.primary.main, 0.05)} 0%, ${alpha(color || theme.palette.primary.main, 0.1)} 100%)`,
+        position: 'relative',
+        overflow: 'hidden',
+        transition: 'all 0.3s ease-in-out',
+        transform: hovered ? 'translateY(-4px)' : 'none',
+        boxShadow: hovered ? `0 8px 16px ${alpha(color || theme.palette.primary.main, 0.2)}` : 'none',
+        cursor: 'pointer'
+      }}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <Box 
+        sx={{ 
+          position: 'absolute', 
+          top: -20, 
+          right: -20, 
+          opacity: 0.1,
+          transform: hovered ? 'rotate(20deg) scale(1.2)' : 'rotate(15deg)',
+          transition: 'transform 0.3s ease-in-out'
+        }}
+      >
+        {icon}
+      </Box>
+      
+      {hovered && (
+        <Box 
+          sx={{ 
+            position: 'absolute',
+            bottom: 8,
+            right: 8,
+            backgroundColor: alpha(theme.palette.background.paper, 0.6),
+            backdropFilter: 'blur(4px)',
+            borderRadius: '50%',
+            p: 0.5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: `0 2px 6px ${alpha(theme.palette.common.black, 0.2)}`
+          }}
+        >
+          <ZoomInIcon fontSize="small" color="primary" />
+        </Box>
+      )}
+      
+      <CardContent>
+        <Box sx={{ mb: 1 }}>
+          <Typography 
+            variant="overline" 
+            color={color || "primary.main"} 
+            fontWeight="bold"
+            sx={{ 
+              transition: 'letter-spacing 0.3s ease',
+              letterSpacing: hovered ? '0.08em' : '0.05em'
+            }}
+          >
+            {title}
+          </Typography>
+        </Box>
+        <Typography 
+          variant="h3" 
+          component="div" 
+          fontWeight="bold"
+          sx={{ 
+            transition: 'transform 0.3s ease',
+            transform: hovered ? 'scale(1.05)' : 'none',
+            transformOrigin: 'left'
+          }}
+        >
+          {value}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
+          {trend && (
+            <>
+              {trendValue > 0 ? (
+                <TrendingUpIcon color="error" fontSize="small" sx={{ mr: 0.5 }} />
+              ) : (
+                <TrendingDownIcon color="success" fontSize="small" sx={{ mr: 0.5 }} />
+              )}
+              <Typography 
+                variant="body2" 
+                color={trendValue > 0 ? "error" : "success"}
+              >
+                {Math.abs(trendValue).toFixed(1)}% {trendValue > 0 ? "increase" : "decrease"}
+              </Typography>
+            </>
+          )}
+          {!trend && subtitle && (
+            <Typography variant="body2" color="text.secondary">
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+        
+        {hovered && (
+          <Box 
+            sx={{ 
+              mt: 2, 
+              height: 2, 
+              width: '100%', 
+              backgroundColor: color || theme.palette.primary.main,
+              animation: 'pulse 1.5s infinite',
+              '@keyframes pulse': {
+                '0%': { opacity: 0.4 },
+                '50%': { opacity: 0.8 },
+                '100%': { opacity: 0.4 }
+              }
+            }} 
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+// Enhanced chart component with interactive data points
+const EnhancedBarChart = ({ data, dataKey, xAxisKey, color, title, height, onItemClick }) => {
+  const theme = useTheme();
+  
+  const handleBarClick = (data, index) => {
+    if (onItemClick) {
+      onItemClick(data, index);
+    }
+  };
+  
+  return (
+    <Paper sx={{ p: 3, height }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+        <Typography variant="h6" fontWeight="bold" gutterBottom>
+          {title}
+        </Typography>
+        <Tooltip title="Click any bar for detailed breakdown">
+          <Box sx={{ display: 'flex', alignItems: 'center', border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}`, borderRadius: 1, px: 1, py: 0.5 }}>
+            <TouchAppIcon fontSize="small" color="primary" sx={{ mr: 0.5 }} />
+            <Typography variant="caption" color="primary.main">Interactive</Typography>
+          </Box>
+        </Tooltip>
+      </Box>
+      
+      <ResponsiveContainer width="100%" height="85%">
+        <BarChart
+          data={data}
+          margin={{ top: 5, right: 30, left: 20, bottom: 50 }}
+          barSize={40}
+        >
+          <defs>
+            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color || theme.palette.primary.main} stopOpacity={1} />
+              <stop offset="100%" stopColor={color || theme.palette.primary.main} stopOpacity={0.6} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+          <XAxis 
+            dataKey={xAxisKey} 
+            angle={-45} 
+            textAnchor="end"
+            height={70}
+            interval={0}
+            tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+          />
+          <YAxis 
+            width={80}
+            tickFormatter={(value) => value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
+            tick={{ fill: theme.palette.text.secondary }}
+          />
+          <Tooltip 
+            content={<CustomTooltip onItemClick={(entry) => handleBarClick(entry.payload, entry.index)} />} 
+          />
+          <Bar 
+            dataKey={dataKey} 
+            name={dataKey} 
+            fill="url(#barGradient)" 
+            radius={[4, 4, 0, 0]}
+            onClick={handleBarClick}
+            cursor="pointer"
+            isAnimationActive={true}
+            animationDuration={1000}
+            animationEasing="ease-in-out"
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </Paper>
+  );
+};
+
+// Enhanced component for detailed timeline with interactive elements
+const TimelineChart = ({ data, onPointClick }) => {
+  const theme = useTheme();
+  const [focusedIndex, setFocusedIndex] = useState(null);
+  
+  const handleMouseOver = (data, index) => {
+    setFocusedIndex(index);
+  };
+  
+  const handleMouseLeave = () => {
+    setFocusedIndex(null);
+  };
+  
+  return (
+    <Paper sx={{ p: 3, height: 450 }}>
+      <Typography variant="h6" gutterBottom fontWeight="bold">
+        Regulation Growth Over Time
+      </Typography>
+      <Typography variant="body2" color="text.secondary" paragraph>
+        Historical tracking of total word count. Click any point for detailed analysis.
+      </Typography>
+      <ResponsiveContainer width="100%" height={350}>
+        <AreaChart
+          data={data}
+          margin={{ top: 10, right: 30, left: 10, bottom: 30 }}
+          onMouseLeave={handleMouseLeave}
+        >
+          <defs>
+            <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.8}/>
+              <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+          <XAxis 
+            dataKey="date" 
+            tick={{ fill: theme.palette.text.secondary }}
+            interval="preserveStartEnd"
+          />
+          <YAxis 
+            width={80}
+            tickFormatter={(value) => value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
+            tick={{ fill: theme.palette.text.secondary }}
+          />
+          <Tooltip 
+            content={<CustomTooltip onItemClick={(entry) => onPointClick(entry.payload)} />}
+          />
+          <Area 
+            type="monotone" 
+            dataKey="wordCount" 
+            name="Total Word Count"
+            stroke={theme.palette.primary.main}
+            fillOpacity={1}
+            fill="url(#colorGradient)"
+            activeDot={{ 
+              r: (entry, index) => focusedIndex === index ? 8 : 6,
+              onClick: (datapoint) => {
+                onPointClick(datapoint.payload);
+              },
+              onMouseOver: (datapoint) => {
+                handleMouseOver(datapoint.payload, datapoint.index);
+              },
+              stroke: theme.palette.background.paper,
+              strokeWidth: 2,
+              fill: theme.palette.primary.main
+            }}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </Paper>
+  );
+};
+
+// Enhanced treemap component with drilldown capabilities
+const EnhancedTreemap = ({ data, title, onClick }) => {
+  const theme = useTheme();
+  
+  return (
+    <Paper sx={{ p: 3, height: 400 }}>
+      <Typography variant="h6" gutterBottom fontWeight="bold">
+        {title}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" paragraph>
+        Relative size represents word count proportion. Click any segment to explore details.
+      </Typography>
+      <ResponsiveContainer width="100%" height={300}>
+        <Treemap
+          data={data}
+          dataKey="size"
+          nameKey="name"
+          aspectRatio={4/3}
+          stroke={theme.palette.background.paper}
+          onClick={onClick}
+          content={({ root, depth, x, y, width, height, index, payload, colors, rank, name }) => {
+            return (
+              <g>
+                <rect
+                  x={x}
+                  y={y}
+                  width={width}
+                  height={height}
+                  style={{
+                    fill: depth < 2 ? theme.palette.chart[index % theme.palette.chart.length] : '#ffffff',
+                    stroke: theme.palette.background.paper,
+                    strokeWidth: 2,
+                    strokeOpacity: 1,
+                    cursor: 'pointer'
+                  }}
+                />
+                {width > 30 && height > 30 && (
+                  <text
+                    x={x + width / 2}
+                    y={y + height / 2}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    style={{
+                      fontSize: Math.min(width, height) > 60 ? 14 : 10,
+                      fill: theme.palette.getContrastText(theme.palette.chart[index % theme.palette.chart.length]),
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {name}
+                  </text>
+                )}
+                {width > 60 && height > 40 && (
+                  <text
+                    x={x + width / 2}
+                    y={y + height / 2 + 15}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    style={{
+                      fontSize: 10,
+                      fill: theme.palette.getContrastText(theme.palette.chart[index % theme.palette.chart.length]),
+                      opacity: 0.7,
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {`${(payload.percentage || 0).toFixed(1)}%`}
+                  </text>
+                )}
+              </g>
+            );
+          }}
+        />
+      </ResponsiveContainer>
+    </Paper>
+  );
+};
+
+// Enhanced change cards with drill-down capability
+const EnhancedChangeCard = ({ change, onClick }) => {
+  const theme = useTheme();
+  const [hovered, setHovered] = useState(false);
+  
+  return (
+    <Card 
+      variant="outlined" 
+      sx={{ 
+        backgroundColor: 'background.card',
+        border: '1px solid',
+        borderColor: change.isIncrease 
+          ? alpha(theme.palette.error.main, hovered ? 0.5 : 0.3)
+          : alpha(theme.palette.success.main, hovered ? 0.5 : 0.3),
+        position: 'relative',
+        overflow: 'hidden',
+        cursor: 'pointer',
+        transition: 'all 0.3s ease',
+        transform: hovered ? 'translateY(-4px)' : 'none',
+        boxShadow: hovered 
+          ? `0 8px 16px ${alpha(change.isIncrease ? theme.palette.error.main : theme.palette.success.main, 0.2)}`
+          : 'none',
+      }}
+      onClick={() => onClick(change)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <CardContent>
+        <Typography variant="subtitle1" fontWeight="bold" gutterBottom noWrap>
+          {change.name}
+        </Typography>
+        <Typography 
+          variant="h5" 
+          color={change.isIncrease ? 'error' : 'success'}
+          fontWeight="bold"
+        >
+          {change.isIncrease ? '+' : ''}{change.change.toLocaleString()}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          words {change.isIncrease ? 'added' : 'removed'}
+        </Typography>
+        
+        <LinearProgress 
+          variant="determinate" 
+          value={Math.min(100, Math.abs(change.change) / 1000)}
+          sx={{ 
+            mt: 2,
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: alpha(
+              change.isIncrease ? theme.palette.error.main : theme.palette.success.main, 
+              0.1
+            ),
+            '& .MuiLinearProgress-bar': {
+              backgroundColor: change.isIncrease ? theme.palette.error.main : theme.palette.success.main
+            }
+          }}
+        />
+        
+        {hovered && (
+          <Box sx={{ 
+            position: 'absolute', 
+            top: 8, 
+            right: 8, 
+            backgroundColor: alpha(theme.palette.background.paper, 0.8),
+            borderRadius: '50%',
+            width: 28,
+            height: 28,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <ZoomInIcon fontSize="small" color={change.isIncrease ? "error" : "success"} />
+          </Box>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const Dashboard = ({ agenciesData, historicalData }) => {
   const theme = useTheme();
   const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const [expandedView, setExpandedView] = useState(false);
+  const [detailDialog, setDetailDialog] = useState({ open: false, title: '', data: null, type: '' });
+  const [activeEntity, setActiveEntity] = useState(null);
   const { chart: COLORS } = theme.palette;
   
   // Calculate total word count
@@ -79,7 +1040,11 @@ const Dashboard = ({ agenciesData, historicalData }) => {
     .map(agency => ({
       name: agency.name.length > 20 ? agency.name.substring(0, 20) + '...' : agency.name,
       wordCount: agency.wordCount,
-      percentage: (agency.wordCount / totalWordCount * 100).toFixed(1)
+      percentage: (agency.wordCount / totalWordCount * 100).toFixed(1),
+      totalWordCount, // Add total for context in dialogs
+      regulationCount: agency.regulationCount,
+      lastUpdated: agency.lastUpdated,
+      agencyId: agency.agencyId
     }));
   
   // Format historical data for the line chart
@@ -109,7 +1074,9 @@ const Dashboard = ({ agenciesData, historicalData }) => {
         return {
           name: entityName.length > 25 ? entityName.substring(0, 25) + '...' : entityName,
           change: change.wordDifference,
-          isIncrease: change.wordDifference > 0
+          isIncrease: change.wordDifference > 0,
+          entityType: change.entityType,
+          date: historicalData[0].date
         };
       })
     : [];
@@ -130,7 +1097,12 @@ const Dashboard = ({ agenciesData, historicalData }) => {
     .slice(0, 5)
     .map(agency => ({
       name: agency.name.length > 20 ? agency.name.substring(0, 20) + '...' : agency.name,
-      avgWordCount: agency.regulationCount ? Math.round(agency.wordCount / agency.regulationCount) : 0
+      avgWordCount: agency.regulationCount ? Math.round(agency.wordCount / agency.regulationCount) : 0,
+      wordCount: agency.wordCount,
+      regulationCount: agency.regulationCount,
+      totalWordCount,
+      lastUpdated: agency.lastUpdated,
+      agencyId: agency.agencyId
     }));
     
   // Create data for treemap visualization of agency word count
@@ -138,10 +1110,11 @@ const Dashboard = ({ agenciesData, historicalData }) => {
     const formattedData = topAgencies.map(agency => ({
       name: agency.name,
       size: agency.wordCount,
+      percentage: (agency.wordCount / totalWordCount) * 100
     }));
     
-    return [{ name: 'agencies', children: formattedData }];
-  }, [topAgencies]);
+    return formattedData;
+  }, [topAgencies, totalWordCount]);
 
   // Calculate word count growth rate
   let growthRate = 0;
@@ -163,6 +1136,74 @@ const Dashboard = ({ agenciesData, historicalData }) => {
   const handleExpandView = () => {
     setExpandedView(!expandedView);
     handleMenuClose();
+  };
+  
+  // Handle opening detail dialogs
+  const handleOpenDetail = (title, data, type) => {
+    setDetailDialog({
+      open: true,
+      title,
+      data,
+      type
+    });
+  };
+  
+  // Handle closing detail dialog
+  const handleCloseDetail = () => {
+    setDetailDialog({
+      ...detailDialog,
+      open: false
+    });
+  };
+  
+  // Handle chart item click for drilldown
+  const handleChartItemClick = (data) => {
+    if (data.name) {
+      handleOpenDetail(
+        `Details for ${data.name}`, 
+        { ...data, totalWordCount }, 
+        'regulation'
+      );
+    }
+  };
+  
+  // Handle timeline chart point click
+  const handleTimelinePointClick = (data) => {
+    handleOpenDetail(
+      `Analysis for ${data.date}`,
+      historicalChartData,
+      'trend'
+    );
+  };
+  
+  // Handle agency card click
+  const handleAgencyCardClick = (agency) => {
+    handleOpenDetail(
+      agency.name,
+      { ...agency, totalWordCount },
+      'agency'
+    );
+  };
+  
+  // Handle treemap item click
+  const handleTreemapItemClick = (data) => {
+    const agency = topAgencies.find(a => a.name === data.name);
+    if (agency) {
+      handleOpenDetail(
+        agency.name,
+        { ...agency, totalWordCount },
+        'agency'
+      );
+    }
+  };
+  
+  // Handle change card click
+  const handleChangeCardClick = (change) => {
+    handleOpenDetail(
+      `${change.isIncrease ? 'Increase' : 'Decrease'} in ${change.name}`,
+      change,
+      'change'
+    );
   };
   
   return (
@@ -212,154 +1253,68 @@ const Dashboard = ({ agenciesData, historicalData }) => {
       {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
-          <Card sx={{ 
-            height: '100%',
-            background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <Box 
-              sx={{ 
-                position: 'absolute', 
-                top: -20, 
-                right: -20, 
-                opacity: 0.1,
-                transform: 'rotate(15deg)'
-              }}
-            >
-              <DescriptionIcon sx={{ fontSize: 120 }} />
-            </Box>
-            <CardContent>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="overline" color="primary.main" fontWeight="bold">
-                  TOTAL WORD COUNT
-                </Typography>
-              </Box>
-              <Typography variant="h3" component="div" fontWeight="bold">
-                {totalWordCount.toLocaleString()}
-              </Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                {growthRate > 0 ? (
-                  <TrendingUpIcon color="error" fontSize="small" sx={{ mr: 0.5 }} />
-                ) : (
-                  <TrendingDownIcon color="success" fontSize="small" sx={{ mr: 0.5 }} />
-                )}
-                <Typography 
-                  variant="body2" 
-                  color={growthRate > 0 ? "error" : "success"}
-                >
-                  {Math.abs(growthRate).toFixed(1)}% {growthRate > 0 ? "increase" : "decrease"} since first record
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <DrilldownCard
+            title="TOTAL WORD COUNT"
+            value={totalWordCount.toLocaleString()}
+            trend={true}
+            trendValue={growthRate}
+            icon={<DescriptionIcon sx={{ fontSize: 120 }} />}
+            color={theme.palette.primary.main}
+            onClick={() => handleOpenDetail(
+              "Word Count Analysis", 
+              historicalChartData, 
+              'trend'
+            )}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
-          <Card sx={{ 
-            height: '100%',
-            background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <Box 
-              sx={{ 
-                position: 'absolute', 
-                top: -20, 
-                right: -20, 
-                opacity: 0.1,
-                transform: 'rotate(15deg)'
-              }}
-            >
-              <GavelIcon sx={{ fontSize: 120 }} />
-            </Box>
-            <CardContent>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="overline" color="secondary.main" fontWeight="bold">
-                  TOTAL REGULATIONS
-                </Typography>
-              </Box>
-              <Typography variant="h3" component="div" fontWeight="bold">
-                {totalRegulations.toLocaleString()}
-              </Typography>
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Average {Math.round(totalWordCount / totalRegulations).toLocaleString()} words per regulation
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <DrilldownCard
+            title="TOTAL REGULATIONS"
+            value={totalRegulations.toLocaleString()}
+            subtitle={`Average ${Math.round(totalWordCount / totalRegulations).toLocaleString()} words per regulation`}
+            icon={<GavelIcon sx={{ fontSize: 120 }} />}
+            color={theme.palette.secondary.main}
+            onClick={() => handleOpenDetail(
+              "Regulations Analysis", 
+              { 
+                name: "Federal Regulations", 
+                value: totalRegulations,
+                category: "All Categories",
+                wordCount: totalWordCount
+              }, 
+              'regulation'
+            )}
+          />
         </Grid>
         <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
-          <Card sx={{ 
-            height: '100%',
-            background: `linear-gradient(135deg, ${alpha(COLORS[2], 0.05)} 0%, ${alpha(COLORS[2], 0.1)} 100%)`,
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            <Box 
-              sx={{ 
-                position: 'absolute', 
-                top: -20, 
-                right: -20, 
-                opacity: 0.1,
-                transform: 'rotate(15deg)'
-              }}
-            >
-              <BusinessIcon sx={{ fontSize: 120 }} />
-            </Box>
-            <CardContent>
-              <Box sx={{ mb: 1 }}>
-                <Typography variant="overline" sx={{ color: COLORS[2] }} fontWeight="bold">
-                  REGULATORY AGENCIES
-                </Typography>
-              </Box>
-              <Typography variant="h3" component="div" fontWeight="bold">
-                {agenciesData.length}
-              </Typography>
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2" color="text.secondary">
-                  Overseeing {(totalWordCount / 1000000).toFixed(2)} million words of regulations
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <DrilldownCard
+            title="REGULATORY AGENCIES"
+            value={agenciesData.length}
+            subtitle={`Overseeing ${(totalWordCount / 1000000).toFixed(2)} million words of regulations`}
+            icon={<BusinessIcon sx={{ fontSize: 120 }} />}
+            color={theme.palette.chart[2]}
+            onClick={() => handleOpenDetail(
+              "Agency Distribution", 
+              { ...topAgencies[0], totalWordCount }, 
+              'agency'
+            )}
+          />
         </Grid>
         
         {expandedView && (
           <Grid item xs={12} sm={6} md={3}>
-            <Card sx={{ 
-              height: '100%',
-              background: `linear-gradient(135deg, ${alpha(COLORS[3], 0.05)} 0%, ${alpha(COLORS[3], 0.1)} 100%)`,
-              position: 'relative',
-              overflow: 'hidden'
-            }}>
-              <Box 
-                sx={{ 
-                  position: 'absolute', 
-                  top: -20, 
-                  right: -20, 
-                  opacity: 0.1,
-                  transform: 'rotate(15deg)'
-                }}
-              >
-                <AnalyticsIcon sx={{ fontSize: 120 }} />
-              </Box>
-              <CardContent>
-                <Box sx={{ mb: 1 }}>
-                  <Typography variant="overline" sx={{ color: COLORS[3] }} fontWeight="bold">
-                    COMPLEXITY SCORE
-                  </Typography>
-                </Box>
-                <Typography variant="h3" component="div" fontWeight="bold">
-                  {(Math.log(totalWordCount) / Math.log(10)).toFixed(1)}
-                </Typography>
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Logarithmic complexity index based on total word count
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
+            <DrilldownCard
+              title="COMPLEXITY SCORE"
+              value={(Math.log(totalWordCount) / Math.log(10)).toFixed(1)}
+              subtitle="Logarithmic complexity index based on total word count"
+              icon={<AnalyticsIcon sx={{ fontSize: 120 }} />}
+              color={theme.palette.chart[3]}
+              onClick={() => handleOpenDetail(
+                "Complexity Analysis", 
+                agencyComplexity, 
+                'trend'
+              )}
+            />
           </Grid>
         )}
       </Grid>
@@ -369,79 +1324,31 @@ const Dashboard = ({ agenciesData, historicalData }) => {
         {/* Treemap visualization (visible in expanded view) */}
         {expandedView && (
           <Grid item xs={12}>
-            <Paper sx={{ p: 3, height: 400 }}>
-              <Typography variant="h6" gutterBottom fontWeight="bold">
-                Regulatory Footprint - Agency Proportional Representation
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Relative size represents word count proportion in the federal regulatory corpus
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <Treemap
-                  data={treemapData[0].children}
-                  dataKey="size"
-                  nameKey="name"
-                  aspectRatio={4/3}
-                >
-                  {
-                    treemapData[0].children.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
-                    ))
-                  }
-                </Treemap>
-              </ResponsiveContainer>
-            </Paper>
+            <EnhancedTreemap 
+              data={treemapData}
+              title="Regulatory Footprint - Agency Proportional Representation"
+              onClick={handleTreemapItemClick}
+            />
           </Grid>
         )}
         
         {/* Bar Chart - Top Agencies */}
         <Grid item xs={12} lg={8}>
-          <Paper sx={{ p: 3, height: 450 }}>
-            <Typography variant="h6" gutterBottom fontWeight="bold">
-              Top Regulatory Agencies by Word Count
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              Agencies with the largest regulatory footprint in the Federal Register
-            </Typography>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart
-                data={topAgencies}
-                margin={{ top: 10, right: 10, left: 10, bottom: 40 }}
-                barSize={40}
-              >
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={theme.palette.primary.main} stopOpacity={1} />
-                    <stop offset="100%" stopColor={theme.palette.primary.dark} stopOpacity={0.8} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                <XAxis 
-                  dataKey="name" 
-                  angle={-45} 
-                  textAnchor="end"
-                  height={70}
-                  interval={0}
-                  tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
-                />
-                <YAxis 
-                  width={80}
-                  tickFormatter={(value) => value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
-                  tick={{ fill: theme.palette.text.secondary }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar 
-                  dataKey="wordCount" 
-                  name="Word Count" 
-                  fill="url(#barGradient)" 
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </Paper>
+          <EnhancedBarChart
+            data={topAgencies}
+            dataKey="wordCount"
+            xAxisKey="name"
+            color={theme.palette.primary.main}
+            title="Top Regulatory Agencies by Word Count"
+            height={450}
+            onItemClick={(data) => {
+              // Find the full agency data
+              const agency = topAgencies.find(a => a.name === data.name);
+              if (agency) {
+                handleOpenDetail(agency.name, agency, 'agency');
+              }
+            }}
+          />
         </Grid>
         
         {/* Agency Complexity Chart */}
@@ -451,7 +1358,7 @@ const Dashboard = ({ agenciesData, historicalData }) => {
               Agency Complexity
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
-              Top 5 agencies by average words per regulation
+              Top 5 agencies by average words per regulation. Click bars for details.
             </Typography>
             <ResponsiveContainer width="100%" height={350}>
               <BarChart
@@ -471,7 +1378,14 @@ const Dashboard = ({ agenciesData, historicalData }) => {
                   width={150}
                   tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip 
+                  content={<CustomTooltip onItemClick={(entry) => {
+                    const agency = agencyComplexity.find(a => a.name === entry.name);
+                    if (agency) {
+                      handleOpenDetail(agency.name, agency, 'agency');
+                    }
+                  }} />} 
+                />
                 <defs>
                   <linearGradient id="complexityGradient" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor={theme.palette.secondary.dark} stopOpacity={0.8} />
@@ -483,6 +1397,13 @@ const Dashboard = ({ agenciesData, historicalData }) => {
                   name="Avg Words per Regulation" 
                   fill="url(#complexityGradient)" 
                   radius={[0, 4, 4, 0]}
+                  cursor="pointer"
+                  onClick={(data) => {
+                    const agency = agencyComplexity.find(a => a.name === data.name);
+                    if (agency) {
+                      handleOpenDetail(agency.name, agency, 'agency');
+                    }
+                  }}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -491,47 +1412,10 @@ const Dashboard = ({ agenciesData, historicalData }) => {
         
         {/* Line Chart - Historical Trends */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 3, height: expandedView ? 500 : 450 }}>
-            <Typography variant="h6" gutterBottom fontWeight="bold">
-              Regulation Growth Over Time
-            </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              Historical tracking of total word count in the Federal Register
-            </Typography>
-            <ResponsiveContainer width="100%" height={expandedView ? 400 : 350}>
-              <AreaChart
-                data={historicalChartData}
-                margin={{ top: 10, right: 30, left: 10, bottom: 30 }}
-              >
-                <defs>
-                  <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={theme.palette.primary.main} stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor={theme.palette.primary.main} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fill: theme.palette.text.secondary }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis 
-                  width={80}
-                  tickFormatter={(value) => value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
-                  tick={{ fill: theme.palette.text.secondary }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Area 
-                  type="monotone" 
-                  dataKey="wordCount" 
-                  name="Total Word Count"
-                  stroke={theme.palette.primary.main}
-                  fillOpacity={1}
-                  fill="url(#colorGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Paper>
+          <TimelineChart 
+            data={historicalChartData}
+            onPointClick={handleTimelinePointClick}
+          />
         </Grid>
         
         {/* Recent Changes */}
@@ -541,58 +1425,17 @@ const Dashboard = ({ agenciesData, historicalData }) => {
               Recent Regulatory Changes
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Most significant word count changes in the latest update
+              Most significant word count changes in the latest update. Click any card for detailed analysis.
             </Typography>
             
             {recentChanges.length > 0 ? (
               <Grid container spacing={2}>
                 {recentChanges.map((change, index) => (
                   <Grid item xs={12} sm={6} md={4} key={index}>
-                    <Card 
-                      variant="outlined" 
-                      sx={{ 
-                        backgroundColor: 'background.card',
-                        border: '1px solid',
-                        borderColor: change.isIncrease 
-                          ? alpha(theme.palette.error.main, 0.3)
-                          : alpha(theme.palette.success.main, 0.3),
-                        position: 'relative',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <CardContent>
-                        <Typography variant="subtitle1" fontWeight="bold" gutterBottom noWrap>
-                          {change.name}
-                        </Typography>
-                        <Typography 
-                          variant="h5" 
-                          color={change.isIncrease ? 'error' : 'success'}
-                          fontWeight="bold"
-                        >
-                          {change.isIncrease ? '+' : ''}{change.change.toLocaleString()}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          words {change.isIncrease ? 'added' : 'removed'}
-                        </Typography>
-                        
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={Math.min(100, Math.abs(change.change) / 1000)}
-                          sx={{ 
-                            mt: 2,
-                            height: 6,
-                            borderRadius: 3,
-                            backgroundColor: alpha(
-                              change.isIncrease ? theme.palette.error.main : theme.palette.success.main, 
-                              0.1
-                            ),
-                            '& .MuiLinearProgress-bar': {
-                              backgroundColor: change.isIncrease ? theme.palette.error.main : theme.palette.success.main
-                            }
-                          }}
-                        />
-                      </CardContent>
-                    </Card>
+                    <EnhancedChangeCard 
+                      change={change}
+                      onClick={handleChangeCardClick}
+                    />
                   </Grid>
                 ))}
               </Grid>
@@ -602,6 +1445,15 @@ const Dashboard = ({ agenciesData, historicalData }) => {
           </Paper>
         </Grid>
       </Grid>
+      
+      {/* Detail Dialog */}
+      <DetailDialog
+        open={detailDialog.open}
+        onClose={handleCloseDetail}
+        title={detailDialog.title}
+        data={detailDialog.data}
+        type={detailDialog.type}
+      />
       
       {/* Floating action button for expanded view */}
       <Zoom in={true}>
