@@ -1,13 +1,16 @@
 // components/Dashboard.js
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Grid, Paper, Typography, Box, 
   Card, CardContent, Divider, 
-  useTheme, alpha, LinearProgress
+  useTheme, alpha, LinearProgress,
+  Button, Fab, Zoom, IconButton,
+  Tooltip, Menu, MenuItem
 } from '@mui/material';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Area, AreaChart
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, 
+  Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, 
+  Area, AreaChart, Treemap
 } from 'recharts';
 
 // Import icons
@@ -16,6 +19,15 @@ import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import DescriptionIcon from '@mui/icons-material/Description';
 import BusinessIcon from '@mui/icons-material/Business';
 import GavelIcon from '@mui/icons-material/Gavel';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import GetAppIcon from '@mui/icons-material/GetApp';
+import ShareIcon from '@mui/icons-material/Share';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+
+// Import RegulationExplorerIntegration
+import RegulationExplorerIntegration from './RegulationExplorerIntegration';
 
 // Custom tooltip for charts
 const CustomTooltip = ({ active, payload, label }) => {
@@ -50,6 +62,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 const Dashboard = ({ agenciesData, historicalData }) => {
   const theme = useTheme();
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
+  const [expandedView, setExpandedView] = useState(false);
   const { chart: COLORS } = theme.palette;
   
   // Calculate total word count
@@ -118,6 +132,16 @@ const Dashboard = ({ agenciesData, historicalData }) => {
       name: agency.name.length > 20 ? agency.name.substring(0, 20) + '...' : agency.name,
       avgWordCount: agency.regulationCount ? Math.round(agency.wordCount / agency.regulationCount) : 0
     }));
+    
+  // Create data for treemap visualization of agency word count
+  const treemapData = useMemo(() => {
+    const formattedData = topAgencies.map(agency => ({
+      name: agency.name,
+      size: agency.wordCount,
+    }));
+    
+    return [{ name: 'agencies', children: formattedData }];
+  }, [topAgencies]);
 
   // Calculate word count growth rate
   let growthRate = 0;
@@ -127,20 +151,67 @@ const Dashboard = ({ agenciesData, historicalData }) => {
     growthRate = ((lastCount - firstCount) / firstCount) * 100;
   }
   
+  // Handle menu operations
+  const handleMenuOpen = (event) => {
+    setMenuAnchorEl(event.currentTarget);
+  };
+  
+  const handleMenuClose = () => {
+    setMenuAnchorEl(null);
+  };
+  
+  const handleExpandView = () => {
+    setExpandedView(!expandedView);
+    handleMenuClose();
+  };
+  
   return (
     <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 0.5 }}>
-          Federal Regulations Dashboard
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Comprehensive analysis of the Code of Federal Regulations
-        </Typography>
+      <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 0.5 }}>
+            Federal Regulations Dashboard
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Comprehensive analysis of the Code of Federal Regulations
+          </Typography>
+        </Box>
+        <Box>
+          <Tooltip title="Dashboard Options">
+            <IconButton onClick={handleMenuOpen}>
+              <MoreVertIcon />
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={menuAnchorEl}
+            open={Boolean(menuAnchorEl)}
+            onClose={handleMenuClose}
+          >
+            <MenuItem onClick={handleMenuClose}>
+              <GetAppIcon fontSize="small" sx={{ mr: 1 }} />
+              Export Data
+            </MenuItem>
+            <MenuItem onClick={handleMenuClose}>
+              <ShareIcon fontSize="small" sx={{ mr: 1 }} />
+              Share Dashboard
+            </MenuItem>
+            <MenuItem onClick={handleExpandView}>
+              <ZoomInIcon fontSize="small" sx={{ mr: 1 }} />
+              {expandedView ? 'Compact View' : 'Expanded View'}
+            </MenuItem>
+          </Menu>
+        </Box>
       </Box>
+      
+      {/* Advanced Regulation Explorer Integration */}
+      <RegulationExplorerIntegration 
+        agenciesData={agenciesData} 
+        historicalData={historicalData} 
+      />
       
       {/* Summary Cards */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
           <Card sx={{ 
             height: '100%',
             background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.05)} 0%, ${alpha(theme.palette.primary.main, 0.1)} 100%)`,
@@ -183,7 +254,7 @@ const Dashboard = ({ agenciesData, historicalData }) => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
           <Card sx={{ 
             height: '100%',
             background: `linear-gradient(135deg, ${alpha(theme.palette.secondary.main, 0.05)} 0%, ${alpha(theme.palette.secondary.main, 0.1)} 100%)`,
@@ -218,7 +289,7 @@ const Dashboard = ({ agenciesData, historicalData }) => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={4}>
+        <Grid item xs={12} sm={6} md={expandedView ? 3 : 4}>
           <Card sx={{ 
             height: '100%',
             background: `linear-gradient(135deg, ${alpha(COLORS[2], 0.05)} 0%, ${alpha(COLORS[2], 0.1)} 100%)`,
@@ -253,10 +324,79 @@ const Dashboard = ({ agenciesData, historicalData }) => {
             </CardContent>
           </Card>
         </Grid>
+        
+        {expandedView && (
+          <Grid item xs={12} sm={6} md={3}>
+            <Card sx={{ 
+              height: '100%',
+              background: `linear-gradient(135deg, ${alpha(COLORS[3], 0.05)} 0%, ${alpha(COLORS[3], 0.1)} 100%)`,
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <Box 
+                sx={{ 
+                  position: 'absolute', 
+                  top: -20, 
+                  right: -20, 
+                  opacity: 0.1,
+                  transform: 'rotate(15deg)'
+                }}
+              >
+                <AnalyticsIcon sx={{ fontSize: 120 }} />
+              </Box>
+              <CardContent>
+                <Box sx={{ mb: 1 }}>
+                  <Typography variant="overline" sx={{ color: COLORS[3] }} fontWeight="bold">
+                    COMPLEXITY SCORE
+                  </Typography>
+                </Box>
+                <Typography variant="h3" component="div" fontWeight="bold">
+                  {(Math.log(totalWordCount) / Math.log(10)).toFixed(1)}
+                </Typography>
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Logarithmic complexity index based on total word count
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
       </Grid>
       
       {/* Main Charts */}
       <Grid container spacing={3}>
+        {/* Treemap visualization (visible in expanded view) */}
+        {expandedView && (
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3, height: 400 }}>
+              <Typography variant="h6" gutterBottom fontWeight="bold">
+                Regulatory Footprint - Agency Proportional Representation
+              </Typography>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                Relative size represents word count proportion in the federal regulatory corpus
+              </Typography>
+              <ResponsiveContainer width="100%" height={300}>
+                <Treemap
+                  data={treemapData[0].children}
+                  dataKey="size"
+                  nameKey="name"
+                  aspectRatio={4/3}
+                >
+                  {
+                    treemapData[0].children.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))
+                  }
+                </Treemap>
+              </ResponsiveContainer>
+            </Paper>
+          </Grid>
+        )}
+        
         {/* Bar Chart - Top Agencies */}
         <Grid item xs={12} lg={8}>
           <Paper sx={{ p: 3, height: 450 }}>
@@ -304,7 +444,7 @@ const Dashboard = ({ agenciesData, historicalData }) => {
           </Paper>
         </Grid>
         
-        {/* Pie Chart - Agency Distribution */}
+        {/* Agency Complexity Chart */}
         <Grid item xs={12} sm={6} lg={4}>
           <Paper sx={{ p: 3, height: 450 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
@@ -351,14 +491,14 @@ const Dashboard = ({ agenciesData, historicalData }) => {
         
         {/* Line Chart - Historical Trends */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 3, height: 450 }}>
+          <Paper sx={{ p: 3, height: expandedView ? 500 : 450 }}>
             <Typography variant="h6" gutterBottom fontWeight="bold">
               Regulation Growth Over Time
             </Typography>
             <Typography variant="body2" color="text.secondary" paragraph>
               Historical tracking of total word count in the Federal Register
             </Typography>
-            <ResponsiveContainer width="100%" height={350}>
+            <ResponsiveContainer width="100%" height={expandedView ? 400 : 350}>
               <AreaChart
                 data={historicalChartData}
                 margin={{ top: 10, right: 30, left: 10, bottom: 30 }}
@@ -462,6 +602,18 @@ const Dashboard = ({ agenciesData, historicalData }) => {
           </Paper>
         </Grid>
       </Grid>
+      
+      {/* Floating action button for expanded view */}
+      <Zoom in={true}>
+        <Fab 
+          color="primary" 
+          aria-label="expand" 
+          sx={{ position: 'fixed', bottom: 24, right: 24 }}
+          onClick={handleExpandView}
+        >
+          {expandedView ? <CompareArrowsIcon /> : <ZoomInIcon />}
+        </Fab>
+      </Zoom>
     </Box>
   );
 };
