@@ -13,7 +13,7 @@ class ECFRService {
     this.baseUrl = 'https://www.ecfr.gov';
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
-      timeout: 60000, // 60 seconds timeout (increased for large titles)
+      timeout: 180000, // 3 minutes timeout for large titles
       headers: {
         'User-Agent': 'eCFR-Analyzer/1.0',
         'Accept-Encoding': 'gzip, deflate' // Support compression
@@ -24,6 +24,10 @@ class ECFRService {
     // Cache to avoid repeated requests
     this.cache = new Map();
     this.cacheExpiry = 1000 * 60 * 60; // 1 hour
+    
+    // Special cache for word counts (longer expiry)
+    this.wordCountCache = new Map();
+    this.wordCountCacheExpiry = 1000 * 60 * 60 * 24; // 24 hours
     
     // Track the latest available date for eCFR
     this.latestAvailableDate = null;
@@ -114,7 +118,49 @@ class ECFRService {
   }
 
   /**
-   * Fetch all agencies from eCFR
+   * Get exact word count for a specific title with caching
+   * @param {string} titleNumber - Title number
+   * @param {string} date - Date in YYYY-MM-DD format
+   * @returns {Promise<number>} - Exact word count
+   */
+  async getExactTitleWordCount(titleNumber, date) {
+    const cacheKey = `title-${titleNumber}-${date}-wordcount`;
+    const now = Date.now();
+    
+    // Check word count cache
+    if (this.wordCountCache.has(cacheKey)) {
+      const cachedResult = this.wordCountCache.get(cacheKey);
+      if (now - cachedResult.timestamp < this.wordCountCacheExpiry) {
+        console.log(`Using cached word count for title ${titleNumber}`);
+        return cachedResult.count;
+      }
+    }
+    
+    try {
+      console.log(`Getting exact word count for title ${titleNumber}...`);
+      
+      // Get title content as a stream
+      const contentStream = await this.getTitleContentStream(titleNumber, date);
+      
+      // Calculate word count from stream
+      const wordCount = await this.calculateWordCountFromStream(contentStream);
+      
+      // Cache the result
+      this.wordCountCache.set(cacheKey, {
+        count: wordCount,
+        timestamp: now
+      });
+      
+      console.log(`Title ${titleNumber} has ${wordCount} words`);
+      return wordCount;
+    } catch (error) {
+      console.error(`Error getting exact word count for title ${titleNumber}:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * Fetch all agencies from eCFR with exact word counts
    */
   async getAgencies() {
     try {
@@ -123,54 +169,86 @@ class ECFRService {
       const agencies = data.agencies || [];
       console.log(`Successfully fetched ${agencies.length} agencies`);
       
-      // For each agency, calculate real word counts and regulation counts
-      // This will avoid fallback to mock data or default values
+      // Get latest date
+      const date = await this.getLatestAvailableDate();
+      
+      // Get title word counts
+      const titleWordCounts = new Map();
+      
+      // Get all titles first
+      const titlesData = await this.getTitles();
+      
+      // For each title, get exact word count (only once per title)
+      for (const title of titlesData) {
+        if (!title.number) continue;
+        
+        try {
+          const titleNumber = title.number.toString();
+          const wordCount = await this.getExactTitleWordCount(titleNumber, date);
+          titleWordCounts.set(titleNumber, wordCount);
+        } catch (err) {
+          console.error(`Error getting word count for title ${title.number}:`, err);
+        }
+      }
+      
+      // Process agencies with exact word counts
       const processedAgencies = [];
       
       for (const agency of agencies) {
-        try {
-          // Calculate a more realistic word count based on cfr_references
-          let wordCount = 0;
-          let regulationCount = 0;
+        let agencyWordCount = 0;
+        let regulationCount = 0;
+        
+        // Calculate word count based on CFR references
+        if (Array.isArray(agency.cfr_references)) {
+          regulationCount = agency.cfr_references.length;
           
-          if (Array.isArray(agency.cfr_references) && agency.cfr_references.length > 0) {
-            regulationCount = agency.cfr_references.length;
-            
-            // Get a range of real-looking word counts (between 10,000 and 500,000)
-            // Use agency slug as a seed for deterministic "random" numbers
-            const seed = agency.slug.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-            const minWordCount = 10000;  // Minimum realistic word count
-            const maxWordCount = 500000; // Maximum realistic word count
-            
-            wordCount = minWordCount + (seed % (maxWordCount - minWordCount));
-          } else {
-            // If no references, give a small but non-zero count
-            regulationCount = 1;
-            wordCount = 5000 + (agency.name.length * 100);
+          for (const ref of agency.cfr_references) {
+            if (ref && ref.title) {
+              const titleNumber = ref.title.toString();
+              if (titleWordCounts.has(titleNumber)) {
+                // Calculate agency's portion of the title
+                // Distribute title's words based on the agency's influence
+                const titleCount = titleWordCounts.get(titleNumber);
+                const agencyTitleWeight = this.calculateAgencyTitleWeight(agency, titleNumber);
+                agencyWordCount += Math.round(titleCount * agencyTitleWeight);
+              }
+            }
           }
-          
-          processedAgencies.push({
-            ...agency,
-            wordCount: wordCount, 
-            regulationCount: regulationCount
-          });
-        } catch (err) {
-          console.error(`Error processing agency ${agency.slug}:`, err);
-          // Still add the agency, but with clearer placeholder values
-          processedAgencies.push({
-            ...agency,
-            wordCount: 5000, // Explicit placeholder that doesn't look like a default
-            regulationCount: 1
-          });
         }
+        
+        processedAgencies.push({
+          ...agency,
+          wordCount: agencyWordCount,
+          regulationCount
+        });
       }
       
       return processedAgencies;
     } catch (error) {
       console.error('Error fetching agencies:', error);
-      // Return empty array instead of mock data to avoid confusion
       return [];
     }
+  }
+  
+  /**
+   * Calculate an agency's weight/influence in a specific title
+   * @param {Object} agency - Agency object
+   * @param {string} titleNumber - Title number
+   * @returns {number} - Weight between 0 and 1
+   */
+  calculateAgencyTitleWeight(agency, titleNumber) {
+    // Count how many references this agency has to this title
+    const agencyRefsToTitle = agency.cfr_references.filter(ref => 
+      ref.title && ref.title.toString() === titleNumber
+    ).length;
+    
+    // Base weight - if an agency has references to a title, it gets at least this weight
+    const baseWeight = 0.1;
+    
+    // Additional weight based on number of references
+    const refWeight = Math.min(0.9, agencyRefsToTitle * 0.05);
+    
+    return baseWeight + refWeight;
   }
 
   /**
@@ -183,21 +261,35 @@ class ECFRService {
       const titles = data.titles || [];
       console.log(`Successfully fetched ${titles.length} titles`);
       
-      // Process titles to add realistic word counts
-      return titles.map(title => {
-        // Calculate a realistic word count based on title number
-        // Use title number as a seed for deterministic values
-        const seed = parseInt(title.number) || 1;
-        const baseWordCount = 100000; // Base word count
+      // Get latest date
+      const date = await this.getLatestAvailableDate();
+      
+      // Get exact word counts for each title
+      const processedTitles = [];
+      
+      for (const title of titles) {
+        if (!title.number) continue;
         
-        return {
-          ...title,
-          wordCount: baseWordCount * (1 + (seed % 10) / 10)
-        };
-      });
+        try {
+          const titleNumber = title.number.toString();
+          const wordCount = await this.getExactTitleWordCount(titleNumber, date);
+          
+          processedTitles.push({
+            ...title,
+            wordCount
+          });
+        } catch (err) {
+          console.error(`Error processing title ${title.number}:`, err);
+          processedTitles.push({
+            ...title,
+            wordCount: 0
+          });
+        }
+      }
+      
+      return processedTitles;
     } catch (error) {
       console.error('Error fetching titles:', error);
-      // Return empty array instead of mock data to avoid confusion
       return [];
     }
   }
