@@ -13,8 +13,6 @@ import Search from './components/Search';
 import './App.css';
 
 // Allow configuration of API URL via environment variable
-// In development, you might want to use a local URL
-// For production, you'd set this in your deployment environment
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://ecfr-analyzer-production-ef73.up.railway.app';
 
 function App() {
@@ -30,7 +28,6 @@ function App() {
         setError(null);
         
         // Try both API structures (with and without /api prefix)
-        // This provides backward compatibility
         const endpoints = [
           { agencies: `${API_BASE_URL}/api/agencies`, historical: `${API_BASE_URL}/api/historical` },
           { agencies: `${API_BASE_URL}/agencies`, historical: `${API_BASE_URL}/historical` }
@@ -38,7 +35,6 @@ function App() {
         
         let agenciesResponse = null;
         let historicalResponse = null;
-        let errorMsg = '';
         
         // Try each endpoint set until one works
         for (const endpoint of endpoints) {
@@ -59,113 +55,39 @@ function App() {
             }
           } catch (endpointError) {
             console.error(`Error with endpoint ${endpoint.agencies}:`, endpointError);
-            errorMsg = endpointError.message;
             // Continue to next endpoint set
           }
         }
         
         // If we got agency data
         if (agenciesResponse && agenciesResponse.data) {
-          // Check if data is in .agencies property (direct eCFR API format) or root array
-          setAgenciesData(Array.isArray(agenciesResponse.data) 
+          // Ensure agencies data is an array
+          const agencies = Array.isArray(agenciesResponse.data) 
             ? agenciesResponse.data 
-            : agenciesResponse.data.agencies || []);
+            : (agenciesResponse.data.agencies || agenciesResponse.data.data || []);
+          
+          setAgenciesData(agencies);
         } else {
-          // Fallback to sample data if API failed
-          setAgenciesData(generateSampleAgenciesData());
-          console.warn('Using sample agency data since API request failed');
+          throw new Error('No agency data could be fetched');
         }
         
         // If we got historical data
         if (historicalResponse && historicalResponse.data) {
-          setHistoricalData(historicalResponse.data || []);
+          setHistoricalData(historicalResponse.data);
         } else {
-          // Fallback to sample data if API failed
-          setHistoricalData(generateSampleHistoricalData());
-          console.warn('Using sample historical data since API request failed');
+          throw new Error('No historical data could be fetched');
         }
         
         setLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
         setError(`Failed to fetch data: ${error.message}`);
-        
-        // Fallback to sample data on error
-        setAgenciesData(generateSampleAgenciesData());
-        setHistoricalData(generateSampleHistoricalData());
         setLoading(false);
       }
     };
     
     fetchData();
   }, []);
-  
-  // Generate sample data for development/fallback
-  const generateSampleAgenciesData = () => {
-    const agencies = [];
-    const names = [
-      'Environmental Protection Agency', 
-      'Department of Health and Human Services',
-      'Department of Transportation',
-      'Department of Labor',
-      'Department of Treasury',
-      'Federal Communications Commission',
-      'Federal Trade Commission',
-      'Consumer Financial Protection Bureau',
-      'Securities and Exchange Commission',
-      'Food and Drug Administration'
-    ];
-    
-    for (let i = 0; i < names.length; i++) {
-      const wordCount = Math.floor(Math.random() * 500000) + 100000;
-      const regulationCount = Math.floor(Math.random() * 100) + 10;
-      
-      agencies.push({
-        agencyId: `agency-${i}`,
-        name: names[i],
-        shortName: names[i].split(' ').pop(),
-        displayName: names[i],
-        slug: names[i].toLowerCase().replace(/[^a-z]+/g, '-'),
-        wordCount,
-        regulationCount,
-        lastUpdated: new Date().toISOString(),
-        cfrReferences: []
-      });
-    }
-    
-    return agencies;
-  };
-  
-  const generateSampleHistoricalData = () => {
-    const data = [];
-    const today = new Date();
-    
-    for (let i = 30; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      // Random word count that increases over time
-      const baseCount = 1000000;
-      const randomFactor = 1 + (Math.random() * 0.05 - 0.025); // -2.5% to +2.5%
-      const totalWordCount = Math.round(baseCount * (1 + i/100) * randomFactor);
-      
-      data.push({
-        date: date.toISOString(),
-        totalWordCount,
-        titleCounts: {},
-        agencyCounts: {},
-        changes: i === 0 ? [] : [
-          {
-            entity: 'Sample Agency',
-            entityType: 'agency',
-            wordDifference: Math.floor(Math.random() * 2000 - 1000) // -1000 to +1000
-          }
-        ]
-      });
-    }
-    
-    return data;
-  };
   
   const handleCloseError = () => {
     setError(null);
