@@ -12,7 +12,7 @@ import HistoricalAnalysis from './components/HistoricalAnalysis';
 import Search from './components/Search';
 import './App.css';
 
-const API_BASE_URL = 'https://proactive-reverence.up.railway.app';
+const API_BASE_URL = 'https://ecfr-analyzer-production-ef73.up.railway.app';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -20,30 +20,27 @@ function App() {
   const [historicalData, setHistoricalData] = useState([]);
   
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch agencies data
-        const agenciesResponse = await axios.get(`${API_BASE_URL}/agencies`);
-        console.log('AGENCIES:', agenciesResponse.data); 
-        console.log("Raw agency data:", agenciesResponse.data);
-        setAgenciesData(agenciesResponse.data.agencies);
-
-
-        // Fetch historical data
-        const historicalResponse = await axios.get(`${API_BASE_URL}/historical.json`);
-        console.log('HISTORICAL:', historicalResponse.data);
-        setHistoricalData(historicalResponse.data || []);
-
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setLoading(false);
-      }
-    };
+ // Update your fetchData function in App.js
+const fetchData = async () => {
+  try {
+    setLoading(true);
     
+    // Fetch agencies data - using /api/agencies instead of /agencies
+    const agenciesResponse = await axios.get(`${API_BASE_URL}/api/agencies`);
+    console.log('AGENCIES:', agenciesResponse.data);
+    setAgenciesData(agenciesResponse.data);
+
+    // Fetch historical data - using /api/historical instead of /historical.json
+    const historicalResponse = await axios.get(`${API_BASE_URL}/api/historical`);
+    console.log('HISTORICAL:', historicalResponse.data);
+    setHistoricalData(historicalResponse.data || []);
+    
+    setLoading(false);
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    setLoading(false);
+  }
+};
     fetchData();
   }, []);
   

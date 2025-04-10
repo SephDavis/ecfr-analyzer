@@ -8,7 +8,12 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors({ origin: '*' }));
+// In server.js, update the CORS middleware
+app.use(cors({
+  origin: 'https://reticulitech-ecfr-analyzer.pages.dev',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // MongoDB Connection
