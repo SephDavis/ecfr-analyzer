@@ -18,31 +18,23 @@ import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
-import PsychologyIcon from '@mui/icons-material/Psychology';
-import AccountTreeIcon from '@mui/icons-material/AccountTree';
 
-// Original Components
+// Components
 import Dashboard from './components/Dashboard';
 import AgencyAnalysis from './components/AgencyAnalysis';
 import HistoricalAnalysis from './components/HistoricalAnalysis';
+import Search from './components/Search';
 import ParticlesBackground from './components/ParticlesBackground';
 import LogoPlaceholder from './components/LogoPlaceholder';
-
-// Advanced AI Components 
-import SemanticSearchEngine from './components/SemanticSearchEngine';
-import EnhancedECFRAnalyzer from './components/EnhancedECFRAnalyzer';
-import RegulatoryKnowledgeGraph from './components/RegulatoryKnowledgeGraph';
-import RegulatoryNLPDashboard from './components/RegulatoryNLPDashboard';
 
 // Theme and Styles
 import theme from './theme';
 import './App.css';
 
-// API Configuration - Use existing configuration
+// Configuration
 const API_BASE_URL = 'https://ecfr-analyzer-production-ef73.up.railway.app';
 
-// Extended Navigation Configuration with new items
+// Navigation Configuration
 const NAV_ITEMS = [
   { 
     text: 'Dashboard', 
@@ -63,22 +55,6 @@ const NAV_ITEMS = [
     text: 'Search', 
     icon: <SearchIcon />, 
     path: '/search' 
-  },
-  // New navigation items for advanced features
-  { 
-    text: 'AI Analytics', 
-    icon: <RocketLaunchIcon />, 
-    path: '/advanced-analytics' 
-  },
-  { 
-    text: 'Knowledge Graph', 
-    icon: <AccountTreeIcon />, 
-    path: '/knowledge-graph' 
-  },
-  { 
-    text: 'NLP Insights', 
-    icon: <PsychologyIcon />, 
-    path: '/nlp-insights' 
   }
 ];
 
@@ -105,7 +81,7 @@ function App() {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const logo = useMemo(loadLogo, []);
 
-  // Data Fetching - Keep the existing implementation
+  // Data Fetching
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -150,7 +126,7 @@ function App() {
   // Logo Component
   const LogoComponent = () => (
     logo 
-      ? <Box component="img" src={logo} alt="eCFR Analyzer" sx={{ height: 40 }} />
+      ? <Box component="img" src={logo} alt="Reticuli Technologies" sx={{ height: 40 }} />
       : <LogoPlaceholder height={40} />
   );
 
@@ -216,7 +192,7 @@ function App() {
       
       <Box sx={{ p: 2, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary">
-          © 2025 eCFR Analyzer
+          © 2025 Reticuli Technologies
         </Typography>
       </Box>
     </Box>
@@ -437,7 +413,6 @@ function App() {
               className="fade-in"
             >
               <Routes>
-                {/* Original Routes */}
                 <Route 
                   path="/" 
                   element={
@@ -455,36 +430,7 @@ function App() {
                   path="/historical" 
                   element={<HistoricalAnalysis historicalData={historicalData} />} 
                 />
-                
-                {/* Replace the original Search with the enhanced SemanticSearchEngine */}
-                <Route 
-                  path="/search" 
-                  element={<SemanticSearchEngine />} 
-                />
-                
-                {/* New Routes for Advanced Features */}
-                <Route 
-                  path="/advanced-analytics" 
-                  element={
-                    <EnhancedECFRAnalyzer 
-                      agenciesData={agenciesData} 
-                      historicalData={historicalData} 
-                    />
-                  } 
-                />
-                <Route 
-                  path="/knowledge-graph" 
-                  element={<RegulatoryKnowledgeGraph />} 
-                />
-                <Route 
-                  path="/nlp-insights" 
-                  element={
-                    <RegulatoryNLPDashboard 
-                      agenciesData={agenciesData} 
-                      historicalData={historicalData} 
-                    />
-                  } 
-                />
+                <Route path="/search" element={<Search />} />
               </Routes>
             </Container>
             
@@ -501,7 +447,7 @@ function App() {
               }}
             >
               <Typography variant="body2" color="text.secondary">
-                © 2025 eCFR Analyzer — All Rights Reserved
+                © 2025 Reticuli Technologies — All Rights Reserved
               </Typography>
             </Box>
           </Box>
