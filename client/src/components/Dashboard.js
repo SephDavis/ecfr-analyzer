@@ -884,6 +884,12 @@ const EnhancedTreemap = ({ data, title, onClick }) => {
           stroke={theme.palette.background.paper}
           onClick={onClick}
           content={({ root, depth, x, y, width, height, index, payload, colors, rank, name }) => {
+            // Safe access to percentage property
+            const percentage = payload && payload.percentage ? payload.percentage : 
+                               // Calculate percentage if we have root.value
+                               (root && root.value && payload && payload.value) ? 
+                               (payload.value / root.value) * 100 : 0;
+            
             return (
               <g>
                 <rect
@@ -927,7 +933,7 @@ const EnhancedTreemap = ({ data, title, onClick }) => {
                       pointerEvents: 'none'
                     }}
                   >
-                    {`${(payload.percentage || 0).toFixed(1)}%`}
+                    {`${percentage.toFixed(1)}%`}
                   </text>
                 )}
               </g>
