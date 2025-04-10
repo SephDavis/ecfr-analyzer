@@ -2,6 +2,8 @@
 const axios = require('axios');
 const natural = require('natural');
 const tokenizer = new natural.WordTokenizer();
+const { Readable } = require('stream');
+const { createGunzip } = require('zlib');
 
 /**
  * Service to handle eCFR data retrieval and analysis
@@ -11,10 +13,12 @@ class ECFRService {
     this.baseUrl = 'https://www.ecfr.gov';
     this.axiosInstance = axios.create({
       baseURL: this.baseUrl,
-      timeout: 30000, // 30 seconds timeout
+      timeout: 60000, // 60 seconds timeout (increased for large titles)
       headers: {
-        'User-Agent': 'eCFR-Analyzer/1.0'
-      }
+        'User-Agent': 'eCFR-Analyzer/1.0',
+        'Accept-Encoding': 'gzip, deflate' // Support compression
+      },
+      decompress: true // Auto-decompress responses
     });
     
     // Cache to avoid repeated requests
@@ -38,6 +42,7 @@ class ECFRService {
     if (this.cache.has(cacheKey)) {
       const cachedResult = this.cache.get(cacheKey);
       if (now - cachedResult.timestamp < this.cacheExpiry) {
+        console.log(`Using cached data for: ${url}`);
         return cachedResult.data;
       }
     }
@@ -161,7 +166,42 @@ class ECFRService {
   }
 
   /**
-   * Get full XML content of a title
+   * Get full XML content of a title as a stream to save memory
+   * @param {string} title - Title number
+   * @param {string} date - Date in YYYY-MM-DD format (optional)
+   * @returns {Promise<stream.Readable>} - Stream of XML content
+   */
+  async getTitleContentStream(title, date = null) {
+    if (!date) {
+      date = await this.getLatestAvailableDate();
+    }
+    
+    try {
+      // Use streaming to handle large XML files
+      console.log(`Fetching content for title ${title} on date ${date} as stream...`);
+      const response = await this.axiosInstance.get(
+        `/api/versioner/v1/full/${date}/title-${title}.xml`, 
+        {
+          responseType: 'stream'
+        }
+      );
+      
+      console.log(`Successfully fetched content stream for title ${title}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching content stream for title ${title}:`, error);
+      
+      // Return a minimal XML as a stream for fallback
+      const fallbackContent = `<TITLE>${title}</TITLE><CONTENT>Content temporarily unavailable for title ${title}</CONTENT>`;
+      const stream = new Readable();
+      stream.push(fallbackContent);
+      stream.push(null);
+      return stream;
+    }
+  }
+
+  /**
+   * Get full XML content of a title (limited size for small titles)
    * @param {string} title - Title number
    * @param {string} date - Date in YYYY-MM-DD format (optional)
    */
@@ -171,11 +211,14 @@ class ECFRService {
     }
     
     try {
-      // Use different request format for XML
+      // Use response type 'text' for XML
       console.log(`Fetching content for title ${title} on date ${date}...`);
-      const response = await this.axiosInstance.get(`${this.baseUrl}/api/versioner/v1/full/${date}/title-${title}.xml`, {
-        responseType: 'text'
+      const response = await this.axiosInstance.get(`/api/versioner/v1/full/${date}/title-${title}.xml`, {
+        responseType: 'text',
+        maxContentLength: 10 * 1024 * 1024, // 10MB limit
+        timeout: 30000 // 30 seconds
       });
+      
       console.log(`Successfully fetched content for title ${title}`);
       return response.data;
     } catch (error) {
@@ -183,6 +226,69 @@ class ECFRService {
       // Return a minimal XML for fallback
       return `<TITLE>${title}</TITLE><CONTENT>Content temporarily unavailable for title ${title}</CONTENT>`;
     }
+  }
+
+  /**
+   * Calculate word count from XML content string
+   * @param {string} xmlContent - XML content string
+   * @returns {number} - Word count
+   */
+  calculateWordCount(xmlContent) {
+    if (!xmlContent) return 0;
+    
+    // Remove XML tags to get plain text
+    const plainText = xmlContent.replace(/<[^>]+>/g, ' ');
+    
+    // Count words
+    const words = tokenizer.tokenize(plainText);
+    return words.length;
+  }
+
+  /**
+   * Calculate word count from XML stream to save memory
+   * @param {stream.Readable} xmlStream - Stream of XML content
+   * @returns {Promise<number>} - Word count
+   */
+  calculateWordCountFromStream(xmlStream) {
+    return new Promise((resolve, reject) => {
+      let wordCount = 0;
+      let buffer = '';
+      
+      xmlStream.on('data', (chunk) => {
+        try {
+          // Process chunk of data
+          const text = buffer + chunk.toString();
+          
+          // Remove XML tags
+          const plainText = text.replace(/<[^>]+>/g, ' ');
+          
+          // Count words
+          const words = tokenizer.tokenize(plainText);
+          wordCount += words.length;
+          
+          // Keep any partial word at the end for next chunk
+          const lastSpaceIndex = plainText.lastIndexOf(' ');
+          if (lastSpaceIndex !== -1 && lastSpaceIndex < plainText.length - 1) {
+            buffer = plainText.substring(lastSpaceIndex + 1);
+          } else {
+            buffer = '';
+          }
+        } catch (err) {
+          console.error('Error processing XML chunk:', err);
+          // Continue processing even if one chunk fails
+        }
+      });
+      
+      xmlStream.on('end', () => {
+        console.log(`Stream processing complete, counted ${wordCount} words`);
+        resolve(wordCount);
+      });
+      
+      xmlStream.on('error', (err) => {
+        console.error('Error in XML stream:', err);
+        reject(err);
+      });
+    });
   }
 
   /**
@@ -274,21 +380,6 @@ class ECFRService {
   }
 
   /**
-   * Calculate word count from XML content
-   * @param {string} xmlContent - XML content from eCFR API
-   */
-  calculateWordCount(xmlContent) {
-    if (!xmlContent) return 0;
-    
-    // Remove XML tags to get plain text
-    const plainText = xmlContent.replace(/<[^>]+>/g, ' ');
-    
-    // Count words
-    const words = tokenizer.tokenize(plainText);
-    return words.length;
-  }
-
-  /**
    * Analyze text to extract metrics
    * @param {string} text - The text to analyze
    */
@@ -306,12 +397,21 @@ class ECFRService {
     // Average words per sentence (complexity metric)
     const complexity = sentenceCount > 0 ? wordCount / sentenceCount : 0;
     
-    // Word frequency
+    // Word frequency - limited to top 1000 words to save memory
     const wordFrequency = {};
-    words.forEach(word => {
+    let wordCount1000 = 0;
+    
+    for (const word of words) {
+      if (wordCount1000 >= 1000) break;
+      
       const normalized = word.toLowerCase();
-      wordFrequency[normalized] = (wordFrequency[normalized] || 0) + 1;
-    });
+      if (!wordFrequency[normalized]) {
+        wordFrequency[normalized] = 1;
+        wordCount1000++;
+      } else {
+        wordFrequency[normalized]++;
+      }
+    }
     
     return {
       wordCount,

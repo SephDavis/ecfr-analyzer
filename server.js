@@ -3,17 +3,17 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const cron = require('node-cron');
 const ecfrService = require('./services/ecfrService');
+const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 require('dotenv').config();
 
 const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
-// Allow requests from any origin during development
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection - use environment variables instead of hardcoding credentials
+// MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://Administrator:ZetaReticuli@cluster0.sbn7pdn.mongodb.net/ecfr_analyzer?retryWrites=true&w=majority&appName=Cluster0';
 
 mongoose.connect(MONGODB_URI, { 
@@ -62,6 +62,19 @@ const historicalDataSchema = new mongoose.Schema({
 const Agency = mongoose.model('Agency', agencySchema);
 const Title = mongoose.model('Title', titleSchema);
 const HistoricalData = mongoose.model('HistoricalData', historicalDataSchema);
+
+// Memory usage monitoring
+function logMemoryUsage(label = '') {
+  const memoryUsage = process.memoryUsage();
+  console.log(`Memory usage ${label ? '(' + label + ')' : ''}:`);
+  console.log(`  RSS: ${Math.round(memoryUsage.rss / 1024 / 1024)} MB`);
+  console.log(`  Heap total: ${Math.round(memoryUsage.heapTotal / 1024 / 1024)} MB`);
+  console.log(`  Heap used: ${Math.round(memoryUsage.heapUsed / 1024 / 1024)} MB`);
+  console.log(`  External: ${Math.round(memoryUsage.external / 1024 / 1024)} MB`);
+}
+
+// Schedule memory logging every 5 minutes
+setInterval(() => logMemoryUsage('periodic'), 5 * 60 * 1000);
 
 // Basic route for testing
 app.get('/', (req, res) => {
@@ -301,13 +314,60 @@ app.get('/historical', async (req, res) => {
   }
 });
 
-//
-// Cron Job – Daily Sync with eCFR
-//
+/**
+ * Process a single title in memory-efficient way
+ * @param {Object} title - Title object
+ * @param {string} latestDate - Latest available date from API
+ * @param {Map} titleCounts - Map to update with title word counts
+ * @returns {Promise<number>} - Word count for the title
+ */
+async function processTitle(title, latestDate, titleCounts) {
+  if (!title.number) {
+    console.log(`Skipping title with missing number: ${JSON.stringify(title)}`);
+    return 0;
+  }
 
+  console.log(`Processing title ${title.number}: ${title.name || 'Unnamed'}`);
+  
+  try {
+    // Get title content as a stream
+    const contentStream = await ecfrService.getTitleContentStream(title.number, latestDate);
+    
+    // Calculate word count from stream
+    const wordCount = await ecfrService.calculateWordCountFromStream(contentStream);
+    console.log(`Processed title ${title.number}: ${wordCount} words`);
+    
+    // Update title counts
+    titleCounts.set(title.number.toString(), wordCount);
+    
+    // Update title in database
+    await Title.findOneAndUpdate(
+      { titleNumber: title.number },
+      {
+        name: title.name || `Title ${title.number}`,
+        wordCount,
+        lastUpdated: new Date()
+      },
+      { upsert: true, new: true }
+    );
+    
+    // Free memory
+    global.gc && global.gc();
+    
+    return wordCount;
+  } catch (error) {
+    console.error(`Error processing title ${title.number}:`, error);
+    return 0;
+  }
+}
+
+//
+// Data Analysis Function - Optimized for memory efficiency
+//
 async function fetchAndAnalyzeECFR() {
   try {
     console.log('🛰️ Fetching and analyzing eCFR data...');
+    logMemoryUsage('start');
 
     // Fetch agencies
     const agencies = await ecfrService.getAgencies();
@@ -324,7 +384,7 @@ async function fetchAndAnalyzeECFR() {
     // Early exit if we don't have data
     if (titles.length === 0) {
       console.error('No titles returned from API, aborting data analysis');
-      return;
+      return false;
     }
 
     let totalWordCount = 0;
@@ -335,51 +395,25 @@ async function fetchAndAnalyzeECFR() {
     const latestDate = await ecfrService.getLatestAvailableDate();
     console.log(`Using latest available date: ${latestDate}`);
 
-    // Process each title
+    // Process titles sequentially to save memory
     for (const title of titles) {
       try {
-        // Skip if title doesn't have a valid number
-        if (!title.number) {
-          console.log(`Skipping title with missing number: ${JSON.stringify(title)}`);
-          continue;
-        }
-
-        console.log(`Processing title ${title.number}: ${title.name || 'Unnamed'}`);
-        
-        // Try to get content with the correct date
-        let content;
-        try {
-          // Use the latest available date from API
-          content = await ecfrService.getTitleContent(title.number, latestDate);
-        } catch (contentError) {
-          console.error(`Error fetching content for title ${title.number}:`, contentError.message);
-          content = `<TITLE>${title.number}</TITLE><CONTENT>Content temporarily unavailable for title ${title.number}</CONTENT>`;
-        }
-        
-        // Calculate word count
-        const wordCount = ecfrService.calculateWordCount(content);
-        titleCounts.set(title.number.toString(), wordCount);
+        const wordCount = await processTitle(title, latestDate, titleCounts);
         totalWordCount += wordCount;
-
-        // Update title in database
-        await Title.findOneAndUpdate(
-          { titleNumber: title.number },
-          {
-            name: title.name || `Title ${title.number}`,
-            wordCount,
-            lastUpdated: new Date()
-          },
-          { upsert: true, new: true }
-        );
         
-        console.log(`Processed title ${title.number}: ${wordCount} words`);
+        // Log memory after each title
+        logMemoryUsage(`after title ${title.number}`);
+        
+        // Add a small delay to allow garbage collection
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (titleError) {
-        console.error(`Error processing title ${title?.number || 'unknown'}:`, titleError);
+        console.error(`Error in title processing loop for ${title?.number || 'unknown'}:`, titleError);
         // Continue with next title
       }
     }
 
     // Process each agency
+    console.log('Processing agencies...');
     for (const agency of agencies) {
       try {
         let agencyWordCount = 0;
@@ -509,6 +543,7 @@ async function fetchAndAnalyzeECFR() {
       console.error('Error saving historical data:', historyError);
     }
     
+    logMemoryUsage('end');
     console.log('✅ Data analysis completed successfully');
     return true;
   } catch (err) {
@@ -543,7 +578,10 @@ async function forceRefreshData() {
 }
 
 // Cron job: midnight daily
-cron.schedule('0 0 * * *', fetchAndAnalyzeECFR);
+cron.schedule('0 0 * * *', () => {
+  console.log('🕛 Running scheduled data refresh');
+  fetchAndAnalyzeECFR();
+});
 
 // Add force refresh endpoint
 app.get('/api/force-refresh', async (req, res) => {
