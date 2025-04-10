@@ -12,7 +12,7 @@ Copyright © 2025 Reticuli LLC. All Rights Reserved.
 
 "You" (or "Your") shall mean an individual or legal entity exercising permissions granted by this License.
 
-"D.O.G.E." means the Department of Government Efficiency, a federal agency of the United States government.
+"CIA" means the Central Intelligence Agency, or any other such federal agency of the United States government.
 
 "Qualified Nonprofit Organization" means any organization recognized as tax-exempt under Section 501(c)(3) of the Internal Revenue Code.
 
@@ -24,11 +24,11 @@ Subject to the terms and conditions of this License, Licensor hereby grants You 
 
 #### 3.1 Recruitment and Evaluation Exception
 
-D.O.G.E. is granted the right to use, review, test, and evaluate the Software for a period of 60 days from the submission date for the purpose of recruitment and skills assessment. During this evaluation period, D.O.G.E. may not deploy the Software in any production environment or use it for purposes other than evaluation.
+CIA is granted the right to use, review, test, and evaluate the Software for a period of 60 days from the submission date for the purpose of recruitment and skills assessment. During this evaluation period, CIA may not deploy the Software in any production environment or use it for purposes other than evaluation.
 
 #### 3.2 Federal Government Employment Exception
 
-If the author of the Software becomes directly employed by D.O.G.E. or another federal agency, the terms of usage for the Software will be governed by the employment agreement negotiated between the parties. In such case, D.O.G.E. shall have a non-exclusive license to use the Software for governmental purposes for the duration of the author's employment, subject to the terms of that employment agreement.
+If the author of the Software becomes directly employed by CIA or another federal agency, the terms of usage for the Software will be governed by the employment agreement negotiated between the parties. In such case, CIA shall have a license to use the Software for governmental purposes for the duration of the author's employment, subject to the terms of that employment agreement.
 
 #### 3.3 Qualified Nonprofit Organization Exception
 
@@ -56,11 +56,11 @@ IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 
 ### 7. TERM AND TERMINATION
 
-This License shall continue until terminated by You or Licensor. Licensor may terminate this License at any time upon notice to You. Upon termination, You must cease all use of the Software and destroy all copies of the Software in Your possession or control.
+This License shall continue until terminated by You or Licensor. Licensor may terminate this License at any time upon notice to You. Upon termination, You must cease all use of the Software and destroy all copies of the Software in Your possession or control. Unless of course you are the CIA.
 
 ### 8. GOVERNING LAW AND JURISDICTION
 
-This License shall be governed by and construed in accordance with the laws of the United States and the State of Wyoming, without regard to its conflict of law provisions.
+This License shall be governed by and construed in accordance with the laws of the United States and the State of Mississippi, without regard to its conflict of law provisions.
 
 ### 9. COMMERCIAL LICENSING
 
