@@ -53,13 +53,13 @@ import {
   PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
 
-// API base URL
-const API_BASE_URL = 'https://www.ecfr.gov';
+// API base URL - use proxy server instead of direct eCFR API
+const API_BASE_URL = 'https://ecfr-analyzer-production-ef73.up.railway.app/api';
 
 // Utility functions for API calls
 const fetchAgencies = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/admin/v1/agencies.json`);
+    const response = await axios.get(`${API_BASE_URL}/agencies`);
     return response.data.agencies || [];
   } catch (error) {
     console.error('Error fetching agencies:', error);
@@ -69,7 +69,7 @@ const fetchAgencies = async () => {
 
 const fetchTitles = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/versioner/v1/titles.json`);
+    const response = await axios.get(`${API_BASE_URL}/titles`);
     return response.data.titles || [];
   } catch (error) {
     console.error('Error fetching titles:', error);
@@ -84,7 +84,7 @@ const fetchCorrections = async (params = {}) => {
     if (params.title) queryParams.append('title', params.title);
     if (params.error_corrected_date) queryParams.append('error_corrected_date', params.error_corrected_date);
     
-    const url = `${API_BASE_URL}/api/admin/v1/corrections.json${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const url = `${API_BASE_URL}/corrections${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     const response = await axios.get(url);
     return response.data.ecfr_corrections || [];
   } catch (error) {
@@ -105,7 +105,7 @@ const searchRegulations = async (query, params = {}) => {
     if (params.per_page) queryParams.append('per_page', params.per_page);
     if (params.page) queryParams.append('page', params.page);
     
-    const url = `${API_BASE_URL}/api/search/v1/results?${queryParams.toString()}`;
+    const url = `${API_BASE_URL}/search?${queryParams.toString()}`;
     const response = await axios.get(url);
     return response.data;
   } catch (error) {
@@ -116,7 +116,7 @@ const searchRegulations = async (query, params = {}) => {
 
 const fetchTitleStructure = async (date, title) => {
   try {
-    const url = `${API_BASE_URL}/api/versioner/v1/structure/${date}/title-${title}.json`;
+    const url = `${API_BASE_URL}/structure/${date}/title-${title}`;
     const response = await axios.get(url);
     return response.data;
   } catch (error) {
@@ -136,7 +136,7 @@ const fetchAncestry = async (date, title, params = {}) => {
     if (params.section) queryParams.append('section', params.section);
     if (params.appendix) queryParams.append('appendix', params.appendix);
     
-    const url = `${API_BASE_URL}/api/versioner/v1/ancestry/${date}/title-${title}.json${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const url = `${API_BASE_URL}/ancestry/${date}/title-${title}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     const response = await axios.get(url);
     return response.data;
   } catch (error) {
@@ -165,7 +165,7 @@ const fetchVersions = async (title, params = {}) => {
     if (params.section) queryParams.append('section', params.section);
     if (params.appendix) queryParams.append('appendix', params.appendix);
     
-    const url = `${API_BASE_URL}/api/versioner/v1/versions/title-${title}.json${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    const url = `${API_BASE_URL}/versions/title-${title}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
     const response = await axios.get(url);
     return response.data;
   } catch (error) {
