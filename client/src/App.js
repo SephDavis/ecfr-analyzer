@@ -12,7 +12,7 @@ import HistoricalAnalysis from './components/HistoricalAnalysis';
 import Search from './components/Search';
 import './App.css';
 
-const API_BASE_URL = 'https://www.ecfr.gov/api/admin/v1';
+const API_BASE_URL = 'https://proactive-reverence.up.railway.app';
 
 function App() {
   const [loading, setLoading] = useState(true);
@@ -25,10 +25,10 @@ function App() {
         setLoading(true);
         
         // Fetch agencies data
-        const agenciesResponse = await axios.get(`${API_BASE_URL}/agencies.json`);
+        const agenciesResponse = await axios.get(`${API_BASE_URL}/agencies`);
         console.log('AGENCIES:', agenciesResponse.data); 
         console.log("Raw agency data:", agenciesResponse.data);
-        setAgenciesData(agenciesResponse.data.agencies); 
+        setAgenciesData(agenciesResponse.data.agencies);
 
 
         // Fetch historical data
