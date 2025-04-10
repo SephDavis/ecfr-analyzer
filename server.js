@@ -74,37 +74,50 @@ app.get('/', (req, res) => {
 
 app.get('/api/agencies', async (req, res) => {
   try {
-    // Fallback to eCFR API if MongoDB is empty or has issues
-    let agencies = await Agency.find();
+    // Always fetch fresh from eCFR API first
+    console.log('Attempting to fetch fresh agency data from eCFR API...');
+    const ecfrAgencies = await ecfrService.getAgencies();
     
-    if (agencies.length === 0) {
-      console.log('No agencies in database, fetching from eCFR API...');
-      // Fetch from eCFR API
-      const ecfrAgencies = await ecfrService.getAgencies();
+    if (ecfrAgencies && ecfrAgencies.length > 0) {
+      console.log(`Successfully fetched ${ecfrAgencies.length} agencies from eCFR API`);
       
       // Transform API response to match your schema
-      agencies = ecfrAgencies.map(agency => ({
+      const agencies = ecfrAgencies.map(agency => ({
         agencyId: agency.slug,
         name: agency.name,
         shortName: agency.short_name || agency.name,
         displayName: agency.display_name || agency.name,
         slug: agency.slug,
-        wordCount: 1000, // Default value
+        wordCount: agency.wordCount || 1000, // Default value
         regulationCount: (agency.cfr_references || []).length,
         lastUpdated: new Date(),
         cfrReferences: agency.cfr_references || []
       }));
       
-      // Optionally save to MongoDB
+      // Save to MongoDB
       try {
+        await Agency.deleteMany({}); // Clear existing data
         await Agency.insertMany(agencies);
-        console.log('Agencies saved to database');
+        console.log('Updated agencies saved to database');
       } catch (saveErr) {
         console.error('Error saving agencies to database:', saveErr);
       }
+      
+      return res.json(agencies);
     }
     
-    res.json(agencies);
+    // If API fetch failed, try to get from database
+    console.log('API fetch returned no data, trying database...');
+    const dbAgencies = await Agency.find();
+    
+    if (dbAgencies.length > 0) {
+      console.log(`Found ${dbAgencies.length} agencies in database`);
+      return res.json(dbAgencies);
+    }
+    
+    // As a last resort, return empty array rather than mock data
+    console.log('No agency data available');
+    return res.json([]);
   } catch (err) {
     console.error('Error in /api/agencies:', err);
     res.status(500).json({ error: err.message });
@@ -113,32 +126,45 @@ app.get('/api/agencies', async (req, res) => {
 
 app.get('/api/titles', async (req, res) => {
   try {
-    // Fallback to eCFR API if MongoDB is empty
-    let titles = await Title.find();
+    // Always fetch fresh from eCFR API first
+    console.log('Attempting to fetch fresh title data from eCFR API...');
+    const ecfrTitles = await ecfrService.getTitles();
     
-    if (titles.length === 0) {
-      console.log('No titles in database, fetching from eCFR API...');
-      // Fetch from eCFR API
-      const ecfrTitles = await ecfrService.getTitles();
+    if (ecfrTitles && ecfrTitles.length > 0) {
+      console.log(`Successfully fetched ${ecfrTitles.length} titles from eCFR API`);
       
       // Transform API response to match your schema
-      titles = ecfrTitles.map(title => ({
+      const titles = ecfrTitles.map(title => ({
         titleNumber: title.number,
         name: title.name,
-        wordCount: 5000, // Default value
+        wordCount: title.wordCount || 5000, // Default value
         lastUpdated: new Date()
       }));
       
-      // Optionally save to MongoDB
+      // Save to MongoDB
       try {
+        await Title.deleteMany({}); // Clear existing data
         await Title.insertMany(titles);
-        console.log('Titles saved to database');
+        console.log('Updated titles saved to database');
       } catch (saveErr) {
         console.error('Error saving titles to database:', saveErr);
       }
+      
+      return res.json(titles);
     }
     
-    res.json(titles);
+    // If API fetch failed, try to get from database
+    console.log('API fetch returned no data, trying database...');
+    const dbTitles = await Title.find();
+    
+    if (dbTitles.length > 0) {
+      console.log(`Found ${dbTitles.length} titles in database`);
+      return res.json(dbTitles);
+    }
+    
+    // As a last resort, return empty array rather than mock data
+    console.log('No title data available');
+    return res.json([]);
   } catch (err) {
     console.error('Error in /api/titles:', err);
     res.status(500).json({ error: err.message });
@@ -147,75 +173,61 @@ app.get('/api/titles', async (req, res) => {
 
 app.get('/api/historical', async (req, res) => {
   try {
-    let historicalData = await HistoricalData.find().sort({ date: -1 }).limit(30);
+    // First check if we have real historical data
+    const historicalData = await HistoricalData.find().sort({ date: -1 }).limit(30);
     
-    if (historicalData.length === 0) {
-      console.log('No historical data in database, generating sample data...');
-      // Generate sample historical data
-      const today = new Date();
-      const sampleData = [];
-      
-      for (let i = 30; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        date.setHours(0, 0, 0, 0);
-        
-        // Random word count that increases over time
-        const baseCount = 1000000;
-        const randomFactor = 1 + (Math.random() * 0.05 - 0.025); // -2.5% to +2.5%
-        const totalWordCount = Math.round(baseCount * (1 + i/100) * randomFactor);
-        
-        // Sample title counts
-        const titleCounts = new Map();
-        for (let t = 1; t <= 50; t++) {
-          titleCounts.set(t.toString(), Math.round(totalWordCount / 50 * (0.5 + Math.random())));
-        }
-        
-        // Sample agency counts
-        const agencyCounts = new Map();
-        const agencies = ['hhs', 'epa', 'dot', 'dol', 'treasury'];
-        agencies.forEach(agency => {
-          agencyCounts.set(agency, Math.round(totalWordCount / 10 * Math.random()));
-        });
-        
-        // Sample changes
-        const changes = [];
-        if (i < 30) { // No changes for the first entry
-          const changeCount = Math.floor(Math.random() * 5) + 1;
-          for (let c = 0; c < changeCount; c++) {
-            const isAgency = Math.random() > 0.5;
-            const entity = isAgency ? 
-              agencies[Math.floor(Math.random() * agencies.length)] : 
-              (Math.floor(Math.random() * 50) + 1).toString();
-            
-            changes.push({
-              entity,
-              entityType: isAgency ? 'agency' : 'title',
-              wordDifference: Math.floor(Math.random() * 2000 - 1000) // -1000 to +1000
-            });
-          }
-        }
-        
-        sampleData.push({
-          date,
-          totalWordCount,
-          titleCounts: Object.fromEntries(titleCounts),
-          agencyCounts: Object.fromEntries(agencyCounts),
-          changes
-        });
-      }
-      
-      // Save to database
-      try {
-        historicalData = await HistoricalData.create(sampleData);
-        console.log('Sample historical data saved to database');
-      } catch (saveErr) {
-        console.error('Error saving historical data to database:', saveErr);
-        historicalData = sampleData;
-      }
+    if (historicalData.length > 0) {
+      return res.json(historicalData);
     }
     
-    res.json(historicalData);
+    // If no historical data exists, try to generate it from current data
+    console.log('No historical data found, attempting to generate from current data...');
+    try {
+      // Get current data
+      const titles = await Title.find();
+      const agencies = await Agency.find();
+      
+      if (titles.length > 0 && agencies.length > 0) {
+        // Generate historical data based on current data
+        const today = new Date();
+        const records = [];
+        
+        // Create a base record for today
+        const totalWordCount = titles.reduce((sum, title) => sum + title.wordCount, 0);
+        
+        // Title counts
+        const titleCounts = {};
+        titles.forEach(title => {
+          titleCounts[title.titleNumber] = title.wordCount;
+        });
+        
+        // Agency counts
+        const agencyCounts = {};
+        agencies.forEach(agency => {
+          agencyCounts[agency.slug] = agency.wordCount;
+        });
+        
+        // Create today's record
+        records.push({
+          date: today,
+          totalWordCount,
+          titleCounts,
+          agencyCounts,
+          changes: []
+        });
+        
+        // Save to database
+        await HistoricalData.create(records);
+        console.log('Generated historical data from current state');
+        
+        return res.json(records);
+      }
+    } catch (genErr) {
+      console.error('Failed to generate historical data:', genErr);
+    }
+    
+    // As a last resort, return empty array
+    return res.json([]);
   } catch (err) {
     console.error('Error in /api/historical:', err);
     res.status(500).json({ error: err.message });
@@ -263,8 +275,12 @@ app.get('/api/title/:titleNumber', async (req, res) => {
 //
 app.get('/agencies', async (req, res) => {
   try {
-    const data = await Agency.find();
-    res.json(data);
+    // Redirect to API endpoint to ensure consistency
+    const apiResponse = await app._router.handle({ 
+      method: 'GET', 
+      url: '/api/agencies',
+      app,
+    }, res);
   } catch (err) {
     console.error('Error in /agencies:', err);
     res.status(500).json({ error: 'Failed to fetch agencies' });
@@ -273,8 +289,12 @@ app.get('/agencies', async (req, res) => {
 
 app.get('/historical', async (req, res) => {
   try {
-    const data = await HistoricalData.find().sort({ date: -1 }).limit(30);
-    res.json(data);
+    // Redirect to API endpoint to ensure consistency
+    const apiResponse = await app._router.handle({ 
+      method: 'GET', 
+      url: '/api/historical',
+      app,
+    }, res);
   } catch (err) {
     console.error('Error in /historical:', err);
     res.status(500).json({ error: 'Failed to fetch historical data' });
@@ -285,7 +305,6 @@ app.get('/historical', async (req, res) => {
 // Cron Job – Daily Sync with eCFR
 //
 
-// Cron Job – Daily Sync with eCFR
 async function fetchAndAnalyzeECFR() {
   try {
     console.log('🛰️ Fetching and analyzing eCFR data...');
@@ -302,9 +321,19 @@ async function fetchAndAnalyzeECFR() {
     
     console.log(`Fetched ${titles.length} titles`);
 
+    // Early exit if we don't have data
+    if (titles.length === 0) {
+      console.error('No titles returned from API, aborting data analysis');
+      return;
+    }
+
     let totalWordCount = 0;
     const titleCounts = new Map();
     const agencyCounts = new Map();
+
+    // Get the latest available date from API
+    const latestDate = await ecfrService.getLatestAvailableDate();
+    console.log(`Using latest available date: ${latestDate}`);
 
     // Process each title
     for (const title of titles) {
@@ -317,13 +346,14 @@ async function fetchAndAnalyzeECFR() {
 
         console.log(`Processing title ${title.number}: ${title.name || 'Unnamed'}`);
         
-        // Try to get content
+        // Try to get content with the correct date
         let content;
         try {
-          content = await ecfrService.getTitleContent(title.number);
+          // Use the latest available date from API
+          content = await ecfrService.getTitleContent(title.number, latestDate);
         } catch (contentError) {
           console.error(`Error fetching content for title ${title.number}:`, contentError.message);
-          content = `<TITLE>${title.number}</TITLE><CONTENT>Sample content for title ${title.number}</CONTENT>`;
+          content = `<TITLE>${title.number}</TITLE><CONTENT>Content temporarily unavailable for title ${title.number}</CONTENT>`;
         }
         
         // Calculate word count
@@ -478,169 +508,70 @@ async function fetchAndAnalyzeECFR() {
     } catch (historyError) {
       console.error('Error saving historical data:', historyError);
     }
+    
+    console.log('✅ Data analysis completed successfully');
+    return true;
   } catch (err) {
     console.error('❌ fetchAndAnalyzeECFR error:', err);
-    
-    // If we hit an error, try to generate sample data instead
-    try {
-      console.log('Attempting to generate sample data as fallback...');
-      await generateSampleData();
-    } catch (fallbackError) {
-      console.error('Failed to generate fallback data:', fallbackError);
-    }
+    return false;
   }
 }
 
-// Helper function to generate sample data if API fails
-async function generateSampleData() {
-  // Generate sample titles
-  const sampleTitles = [];
-  for (let i = 1; i <= 50; i++) {
-    const titleNames = [
-      "General Provisions", "Grants and Agreements", "The President", "Accounts", 
-      "Administrative Personnel", "Domestic Security", "Agriculture", "Aliens and Nationality",
-      "Animals and Animal Products", "Energy", "Federal Elections", "Banks and Banking",
-      "Business Credit and Assistance", "Aeronautics and Space", "Commerce and Foreign Trade",
-      "Commercial Practices", "Commodity and Securities Exchanges", "Conservation of Power and Water Resources",
-      "Customs Duties", "Employees' Benefits", "Food and Drugs", "Foreign Relations",
-      "Highways", "Housing and Urban Development", "Indians", "Internal Revenue",
-      "Alcohol, Tobacco Products and Firearms", "Judicial Administration", "Labor", "Mineral Resources",
-      "Money and Finance: Treasury", "National Defense", "Navigation and Navigable Waters", "Education",
-      "Panama Canal", "Parks, Forests, and Public Property", "Patents, Trademarks, and Copyrights",
-      "Pensions, Bonuses, and Veterans' Relief", "Postal Service", "Protection of Environment",
-      "Public Contracts and Property Management", "Public Health", "Public Lands: Interior",
-      "Emergency Management and Assistance", "Public Welfare", "Shipping", "Telecommunication",
-      "Federal Acquisition Regulations System", "Transportation", "Wildlife and Fisheries"
-    ];
+// Force database refresh for real data
+async function forceRefreshData() {
+  try {
+    console.log('🔄 Force refreshing all data...');
     
-    const titleName = titleNames[i - 1] || `Title ${i}`;
-    const wordCount = Math.floor(Math.random() * 500000) + 50000;
+    // Clear existing data
+    await Agency.deleteMany({});
+    await Title.deleteMany({});
+    await HistoricalData.deleteMany({});
     
-    sampleTitles.push({
-      titleNumber: i,
-      name: titleName,
-      wordCount,
-      lastUpdated: new Date()
-    });
-  }
-  
-  // Save sample titles
-  await Title.insertMany(sampleTitles);
-  console.log(`Generated ${sampleTitles.length} sample titles`);
-  
-  // Generate sample agencies
-  const sampleAgencies = [];
-  const agencyNames = [
-    "Environmental Protection Agency",
-    "Department of Health and Human Services",
-    "Department of Transportation",
-    "Department of Labor",
-    "Department of Treasury",
-    "Federal Communications Commission",
-    "Federal Trade Commission",
-    "Consumer Financial Protection Bureau",
-    "Securities and Exchange Commission",
-    "Food and Drug Administration",
-    "Department of Agriculture",
-    "Department of Education",
-    "Department of Energy",
-    "Department of Homeland Security",
-    "Department of Justice"
-  ];
-  
-  for (let i = 0; i < agencyNames.length; i++) {
-    const wordCount = Math.floor(Math.random() * 200000) + 20000;
-    const regulationCount = Math.floor(Math.random() * 50) + 5;
+    console.log('🧹 Database cleared, fetching fresh data...');
     
-    sampleAgencies.push({
-      agencyId: `agency-${i}`,
-      name: agencyNames[i],
-      shortName: agencyNames[i].split(' ').pop(),
-      displayName: agencyNames[i],
-      slug: agencyNames[i].toLowerCase().replace(/[^a-z]+/g, '-'),
-      wordCount,
-      regulationCount,
-      lastUpdated: new Date(),
-      cfrReferences: []
-    });
-  }
-  
-  // Save sample agencies
-  await Agency.insertMany(sampleAgencies);
-  console.log(`Generated ${sampleAgencies.length} sample agencies`);
-  
-  // Generate sample historical data
-  const sampleHistorical = [];
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  for (let i = 30; i >= 0; i--) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
+    // Fetch new data
+    const success = await fetchAndAnalyzeECFR();
     
-    // Random word count that increases over time
-    const baseCount = 1000000;
-    const randomFactor = 1 + (Math.random() * 0.05 - 0.025); // -2.5% to +2.5%
-    const totalWordCount = Math.round(baseCount * (1 + i/100) * randomFactor);
-    
-    // Sample title counts
-    const titleCounts = {};
-    for (let t = 1; t <= 50; t++) {
-      titleCounts[t] = Math.round(totalWordCount / 50 * (0.5 + Math.random()));
+    if (success) {
+      console.log('✅ Force refresh completed successfully');
+    } else {
+      console.error('❌ Force refresh failed');
     }
-    
-    // Sample agency counts
-    const agencyCounts = {};
-    sampleAgencies.forEach((agency, index) => {
-      agencyCounts[agency.slug] = Math.round(totalWordCount / 15 * Math.random());
-    });
-    
-    // Sample changes
-    const changes = [];
-    if (i < 30) { // No changes for the first entry
-      const changeCount = Math.floor(Math.random() * 5) + 1;
-      for (let c = 0; c < changeCount; c++) {
-        const isAgency = Math.random() > 0.5;
-        const entity = isAgency ? 
-          sampleAgencies[Math.floor(Math.random() * sampleAgencies.length)].slug : 
-          (Math.floor(Math.random() * 50) + 1).toString();
-        
-        changes.push({
-          entity,
-          entityType: isAgency ? 'agency' : 'title',
-          wordDifference: Math.floor(Math.random() * 2000 - 1000) // -1000 to +1000
-        });
-      }
-    }
-    
-    sampleHistorical.push({
-      date,
-      totalWordCount,
-      titleCounts,
-      agencyCounts,
-      changes
-    });
+  } catch (err) {
+    console.error('❌ forceRefreshData error:', err);
   }
-  
-  // Save sample historical data
-  await HistoricalData.insertMany(sampleHistorical);
-  console.log(`Generated ${sampleHistorical.length} sample historical records`);
-  
-  console.log('✅ Fallback sample data generated successfully');
 }
 
 // Cron job: midnight daily
 cron.schedule('0 0 * * *', fetchAndAnalyzeECFR);
 
+// Add force refresh endpoint
+app.get('/api/force-refresh', async (req, res) => {
+  try {
+    // Start refresh in background
+    forceRefreshData().catch(err => console.error('Background refresh error:', err));
+    
+    // Respond immediately
+    res.json({ message: 'Data refresh initiated, check server logs for progress' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Optional: Run once on startup if no data exists
 app.once('ready', async () => {
-  const agencyCount = await Agency.countDocuments();
-  const titleCount = await Title.countDocuments();
-  const historyCount = await HistoricalData.countDocuments();
-  
-  if (agencyCount === 0 || titleCount === 0 || historyCount === 0) {
-    console.log('Database appears empty, running initial data fetch...');
-    fetchAndAnalyzeECFR();
+  try {
+    const agencyCount = await Agency.countDocuments();
+    const titleCount = await Title.countDocuments();
+    
+    if (agencyCount === 0 || titleCount === 0) {
+      console.log('Database appears empty, running initial data fetch...');
+      fetchAndAnalyzeECFR();
+    } else {
+      console.log(`Database contains ${agencyCount} agencies and ${titleCount} titles`);
+    }
+  } catch (err) {
+    console.error('Error checking database state:', err);
   }
 });
 

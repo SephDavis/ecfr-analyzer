@@ -20,6 +20,9 @@ class ECFRService {
     // Cache to avoid repeated requests
     this.cache = new Map();
     this.cacheExpiry = 1000 * 60 * 60; // 1 hour
+    
+    // Track the latest available date for eCFR
+    this.latestAvailableDate = null;
   }
 
   /**
@@ -45,6 +48,7 @@ class ECFRService {
     
     while (retries > 0) {
       try {
+        console.log(`Fetching: ${url}`);
         const response = await this.axiosInstance.get(url, options);
         
         // Cache the result
@@ -55,6 +59,7 @@ class ECFRService {
         
         return response.data;
       } catch (error) {
+        console.error(`Error fetching ${url} (${retries} retries left):`, error.message);
         lastError = error;
         retries--;
         
@@ -71,16 +76,52 @@ class ECFRService {
   }
 
   /**
+   * Get the latest available date from the eCFR titles API
+   */
+  async getLatestAvailableDate() {
+    if (this.latestAvailableDate) {
+      return this.latestAvailableDate;
+    }
+    
+    try {
+      console.log('Fetching latest available date from eCFR API...');
+      const titlesData = await this.fetchWithCache('/api/versioner/v1/titles.json');
+      
+      // Find the most recent date from titles
+      let latestDate = '2023-01-01'; // Fallback default
+      
+      if (titlesData && Array.isArray(titlesData.titles)) {
+        for (const title of titlesData.titles) {
+          if (title.latest_issue_date && title.latest_issue_date > latestDate) {
+            latestDate = title.latest_issue_date;
+          }
+        }
+      }
+      
+      console.log(`Found latest available date: ${latestDate}`);
+      this.latestAvailableDate = latestDate;
+      return latestDate;
+    } catch (error) {
+      console.error('Error getting latest available date:', error);
+      // Use a fallback date if we can't get the latest
+      return '2023-01-01';
+    }
+  }
+
+  /**
    * Fetch all agencies from eCFR
    */
   async getAgencies() {
     try {
+      console.log('Fetching agencies from eCFR API...');
       const data = await this.fetchWithCache('/api/admin/v1/agencies.json');
-      return data.agencies || [];
+      const agencies = data.agencies || [];
+      console.log(`Successfully fetched ${agencies.length} agencies`);
+      return agencies;
     } catch (error) {
       console.error('Error fetching agencies:', error);
-      // Return mock agencies data as fallback
-      return this.getMockAgencies();
+      // Return empty array instead of mock data to avoid confusion
+      return [];
     }
   }
 
@@ -89,21 +130,28 @@ class ECFRService {
    */
   async getTitles() {
     try {
+      console.log('Fetching titles from eCFR API...');
       const data = await this.fetchWithCache('/api/versioner/v1/titles.json');
-      return data || [];
+      const titles = data.titles || [];
+      console.log(`Successfully fetched ${titles.length} titles`);
+      return titles;
     } catch (error) {
       console.error('Error fetching titles:', error);
-      // Return mock titles as fallback
-      return this.getMockTitles();
+      // Return empty array instead of mock data to avoid confusion
+      return [];
     }
   }
 
   /**
    * Get structure of a specific title
    * @param {string} title - Title number
-   * @param {string} date - Date in YYYY-MM-DD format (optional, defaults to current date)
+   * @param {string} date - Date in YYYY-MM-DD format (optional, defaults to latest available date)
    */
-  async getTitleStructure(title, date = this.getCurrentDate()) {
+  async getTitleStructure(title, date = null) {
+    if (!date) {
+      date = await this.getLatestAvailableDate();
+    }
+    
     try {
       return await this.fetchWithCache(`/api/versioner/v1/structure/${date}/title-${title}.json`);
     } catch (error) {
@@ -117,17 +165,23 @@ class ECFRService {
    * @param {string} title - Title number
    * @param {string} date - Date in YYYY-MM-DD format (optional)
    */
-  async getTitleContent(title, date = this.getCurrentDate()) {
+  async getTitleContent(title, date = null) {
+    if (!date) {
+      date = await this.getLatestAvailableDate();
+    }
+    
     try {
       // Use different request format for XML
+      console.log(`Fetching content for title ${title} on date ${date}...`);
       const response = await this.axiosInstance.get(`${this.baseUrl}/api/versioner/v1/full/${date}/title-${title}.xml`, {
         responseType: 'text'
       });
+      console.log(`Successfully fetched content for title ${title}`);
       return response.data;
     } catch (error) {
       console.error(`Error fetching content for title ${title}:`, error);
       // Return a minimal XML for fallback
-      return `<TITLE>${title}</TITLE><CONTENT>Sample content for testing</CONTENT>`;
+      return `<TITLE>${title}</TITLE><CONTENT>Content temporarily unavailable for title ${title}</CONTENT>`;
     }
   }
 
@@ -269,14 +323,10 @@ class ECFRService {
 
   /**
    * Get the current date in YYYY-MM-DD format
+   * Uses the latest available date from eCFR API if available
    */
-  getCurrentDate() {
-    // Instead of using current date, use the most recent available date from API
-    return '2025-04-08';
-    
-    // Original code:
-    // const date = new Date();
-    // return date.toISOString().split('T')[0];
+  async getCurrentDate() {
+    return await this.getLatestAvailableDate();
   }
 
   /**
@@ -296,123 +346,6 @@ class ECFRService {
       newWordCount,
       percentChange: oldWordCount ? ((newWordCount - oldWordCount) / oldWordCount) * 100 : 0
     };
-  }
-
-  /**
-   * Generate mock agencies data for fallback
-   */
-  getMockAgencies() {
-    return [
-      {
-        "slug": "hhs",
-        "name": "Department of Health and Human Services",
-        "short_name": "HHS",
-        "display_name": "Department of Health and Human Services",
-        "cfr_references": [
-          { "title": 42, "chapter": "IV" },
-          { "title": 45, "chapter": "A" }
-        ],
-        "children": [
-          {
-            "slug": "fda",
-            "name": "Food and Drug Administration",
-            "short_name": "FDA", 
-            "display_name": "FDA",
-            "cfr_references": [
-              { "title": 21, "chapter": "I" }
-            ]
-          }
-        ]
-      },
-      {
-        "slug": "epa",
-        "name": "Environmental Protection Agency",
-        "short_name": "EPA",
-        "display_name": "Environmental Protection Agency",
-        "cfr_references": [
-          { "title": 40, "chapter": "I" }
-        ],
-        "children": []
-      },
-      {
-        "slug": "treasury",
-        "name": "Department of the Treasury",
-        "short_name": "Treasury",
-        "display_name": "Department of the Treasury",
-        "cfr_references": [
-          { "title": 31, "chapter": "I" }
-        ],
-        "children": [
-          {
-            "slug": "irs",
-            "name": "Internal Revenue Service",
-            "short_name": "IRS",
-            "display_name": "IRS",
-            "cfr_references": [
-              { "title": 26, "chapter": "I" }
-            ]
-          }
-        ]
-      }
-    ];
-  }
-
-  /**
-   * Generate mock titles data for fallback
-   */
-  getMockTitles() {
-    return [
-      { "number": 1, "name": "General Provisions" },
-      { "number": 2, "name": "Grants and Agreements" },
-      { "number": 3, "name": "The President" },
-      { "number": 4, "name": "Accounts" },
-      { "number": 5, "name": "Administrative Personnel" },
-      { "number": 6, "name": "Domestic Security" },
-      { "number": 7, "name": "Agriculture" },
-      { "number": 8, "name": "Aliens and Nationality" },
-      { "number": 9, "name": "Animals and Animal Products" },
-      { "number": 10, "name": "Energy" },
-      { "number": 11, "name": "Federal Elections" },
-      { "number": 12, "name": "Banks and Banking" },
-      { "number": 13, "name": "Business Credit and Assistance" },
-      { "number": 14, "name": "Aeronautics and Space" },
-      { "number": 15, "name": "Commerce and Foreign Trade" },
-      { "number": 16, "name": "Commercial Practices" },
-      { "number": 17, "name": "Commodity and Securities Exchanges" },
-      { "number": 18, "name": "Conservation of Power and Water Resources" },
-      { "number": 19, "name": "Customs Duties" },
-      { "number": 20, "name": "Employees' Benefits" },
-      { "number": 21, "name": "Food and Drugs" },
-      { "number": 22, "name": "Foreign Relations" },
-      { "number": 23, "name": "Highways" },
-      { "number": 24, "name": "Housing and Urban Development" },
-      { "number": 25, "name": "Indians" },
-      { "number": 26, "name": "Internal Revenue" },
-      { "number": 27, "name": "Alcohol, Tobacco Products and Firearms" },
-      { "number": 28, "name": "Judicial Administration" },
-      { "number": 29, "name": "Labor" },
-      { "number": 30, "name": "Mineral Resources" },
-      { "number": 31, "name": "Money and Finance: Treasury" },
-      { "number": 32, "name": "National Defense" },
-      { "number": 33, "name": "Navigation and Navigable Waters" },
-      { "number": 34, "name": "Education" },
-      { "number": 35, "name": "Panama Canal" },
-      { "number": 36, "name": "Parks, Forests, and Public Property" },
-      { "number": 37, "name": "Patents, Trademarks, and Copyrights" },
-      { "number": 38, "name": "Pensions, Bonuses, and Veterans' Relief" },
-      { "number": 39, "name": "Postal Service" },
-      { "number": 40, "name": "Protection of Environment" },
-      { "number": 41, "name": "Public Contracts and Property Management" },
-      { "number": 42, "name": "Public Health" },
-      { "number": 43, "name": "Public Lands: Interior" },
-      { "number": 44, "name": "Emergency Management and Assistance" },
-      { "number": 45, "name": "Public Welfare" },
-      { "number": 46, "name": "Shipping" },
-      { "number": 47, "name": "Telecommunication" },
-      { "number": 48, "name": "Federal Acquisition Regulations System" },
-      { "number": 49, "name": "Transportation" },
-      { "number": 50, "name": "Wildlife and Fisheries" }
-    ];
   }
 }
 
