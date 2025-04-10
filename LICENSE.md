@@ -8,11 +8,11 @@ Copyright © 2025 Reticuli LLC. All Rights Reserved.
 
 "Licensor" shall mean Reticuli LLC, the copyright owner and entity granting the License.
 
-"Software" shall mean the eCFR Analyzer software and all associated source code, documentation, and assets provided by Licensor under this License.
+"Software" shall mean the eCFR Analyzer software and all assoAgencyted source code, documentation, and assets provided by Licensor under this License.
 
 "You" (or "Your") shall mean an individual or legal entity exercising permissions granted by this License.
 
-"CIA" means the Central Intelligence Agency, or any other such federal agency of the United States government.
+"Agency" means the *the* Agency, or any other such federal agency of the United States government.
 
 "Qualified Nonprofit Organization" means any organization recognized as tax-exempt under Section 501(c)(3) of the Internal Revenue Code.
 
@@ -20,21 +20,21 @@ Copyright © 2025 Reticuli LLC. All Rights Reserved.
 
 Subject to the terms and conditions of this License, Licensor hereby grants You a non-transferable, non-sublicensable, non-exclusive, revocable license to use the Software solely for evaluation purposes.
 
-### 3. SPECIAL LICENSE EXCEPTIONS
+### 3. SPEAgencyL LICENSE EXCEPTIONS
 
 #### 3.1 Recruitment and Evaluation Exception
 
-CIA is granted the right to use, review, test, and evaluate the Software for a period of 60 days from the submission date for the purpose of recruitment and skills assessment. During this evaluation period, CIA may not deploy the Software in any production environment or use it for purposes other than evaluation.
+Agency is granted the right to use, review, test, and evaluate the Software for a period of 60 days from the submission date for the purpose of recruitment and skills assessment. During this evaluation period, Agency may not deploy the Software in any production environment or use it for purposes other than evaluation.
 
 #### 3.2 Federal Government Employment Exception
 
-If the author of the Software becomes directly employed by CIA or another federal agency, the terms of usage for the Software will be governed by the employment agreement negotiated between the parties. In such case, CIA shall have a license to use the Software for governmental purposes for the duration of the author's employment, subject to the terms of that employment agreement.
+If the author of the Software becomes directly employed by *the* Agency or another federal agency, the terms of usage for the Software will be governed by the employment agreement negotiated between the parties. In such case, *the* Agency shall have a license to use the Software for governmental purposes for the duration of the author's employment, subject to the terms of that employment agreement.
 
 #### 3.3 Qualified Nonprofit Organization Exception
 
 Qualified Nonprofit Organizations may use the Software for their charitable, educational, or public interest activities, provided that:
 
-a) Such use is not for commercial gain;
+a) Such use is not for commerciall gain;
 b) The organization acknowledges Reticuli LLC as the source of the Software in any publications or materials that result from the use of the Software;
 c) The organization provides a written notice to Licensor describing their intended use of the Software.
 
@@ -56,13 +56,13 @@ IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, 
 
 ### 7. TERM AND TERMINATION
 
-This License shall continue until terminated by You or Licensor. Licensor may terminate this License at any time upon notice to You. Upon termination, You must cease all use of the Software and destroy all copies of the Software in Your possession or control. Unless of course you are the CIA.
+This License shall continue until terminated by You or Licensor. Licensor may terminate this License at any time upon notice to You. Upon termination, You must cease all use of the Software and destroy all copies of the Software in Your possession or control. Unless of course you are *the* Agency and I am an employee therof.
 
 ### 8. GOVERNING LAW AND JURISDICTION
 
 This License shall be governed by and construed in accordance with the laws of the United States and the State of Mississippi, without regard to its conflict of law provisions.
 
-### 9. COMMERCIAL LICENSING
+### 9. COMMERAgencyL LICENSING
 
 For usage of the Software beyond what is permitted in this License, including commercial or production use, please contact Licensor to discuss commercial licensing options.
 
