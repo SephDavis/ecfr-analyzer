@@ -191,7 +191,7 @@ Key terms of the license include:
 
 - The software may be used for evaluation purposes only
 - Special exceptions exist for:
-  - C.I.A. (Central Intelligence Agency) for recruitment and evaluation (60 days)
+  - Unnamed Federal Agency for recruitment and evaluation (60 days)
   - Federal Government Employment
   - Qualified Nonprofit Organizations
   - Educational institutions for research and teaching
